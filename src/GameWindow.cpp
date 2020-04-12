@@ -123,7 +123,7 @@ GameWindow::~GameWindow()
 	delete MainHBox;
 }
 
-void GameWindow::on_button_raise_clicked()
+void GameWindow::on_button_raise_clicked()//
 {
 	//Grab text
 	std::string entered = raiseField->get_text();
@@ -201,7 +201,7 @@ void GameWindow::on_button_raise_clicked()
 	return;
 }
 
-void GameWindow::on_button_call_clicked()
+void GameWindow::on_button_call_clicked()//
 {
 	//Get value needed to bet
 	int val = me->getMinBetNeeded() - me->getAmountBet();
@@ -279,7 +279,7 @@ void GameWindow::on_button_call_clicked()
 	return;
 }
 
-void GameWindow::on_button_check_clicked()
+void GameWindow::on_button_check_clicked()//
 {
 	if(me->getAmountBet() < me->getMinBetNeeded())
 	{
@@ -288,7 +288,7 @@ void GameWindow::on_button_check_clicked()
 	
 	int action = CHECK;
 	
-	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",0},{"pot",me->getPot()}};//
+	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action}};//
 	nlohmann::json j_object_value(object_value);
 	
 	std::stringstream ss;
@@ -304,7 +304,7 @@ void GameWindow::on_button_check_clicked()
 	return;
 }
 
-void GameWindow::on_button_fold_clicked()
+void GameWindow::on_button_fold_clicked()//
 {
 	for(int i = 0; i < HAND_SIZE; i++)
 	{
@@ -330,7 +330,7 @@ void GameWindow::on_button_fold_clicked()
 	return;
 }
 
-void GameWindow::on_button_buy_in_clicked()
+void GameWindow::on_button_buy_in_clicked()//
 {
 	int val = 10; //buy in amount that I decided on, can change if you want it to
 	if(val > me->getBalance())
@@ -441,7 +441,7 @@ void GameWindow::on_button_all_in_clicked()
 }
 
 void GameWindow::on_button_quit_clicked()
-{
+{	
 	hide();
 }
 
@@ -477,7 +477,35 @@ void GameWindow::addPlayer(Player* player)
 			playerCardsHBox->add(*card);
 			card->set_image_position(Gtk::POS_LEFT);
 			card->set_image(*cardImage);
-			card->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_card_clicked));
+			switch(i)
+			{
+				case 0:
+				{
+					card->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_card_1_clicked));
+					break;
+				}
+				case 1:
+				{
+					card->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_card_2_clicked));
+					break;
+				}
+				case 2:
+				{
+					card->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_card_3_clicked));
+					break;
+				}
+				case 3:
+				{
+					card->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_card_4_clicked));
+					break;
+				}
+				case 4:
+				{
+					card->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_card_5_clicked));
+					break;
+				}
+			}
+			
 			playerCards.push_back(card);
 		}
 	}
@@ -509,10 +537,45 @@ void GameWindow::removePlayers()
 
 void GameWindow::changeCards(Player* player)
 {
+	int i = 0;
+	for(auto card : playerCards)
+	{
+		Gtk::Image* cardImage;
+		
+		int suit = me->getHand()[i] & 0xF0;
+		suit = suit >> 4;
+		int val = me->getHand()[i] & 0x0F;
+		
+		cardImage = cardImages[suit-1][val-1];
+		
+		card->set_image(*cardImage);
+		i++;
+	}
+	
 	return;
 }
 
-void GameWindow::on_button_card_clicked()
+void GameWindow::on_button_card_1_clicked()
+{
+	return;
+}
+
+void GameWindow::on_button_card_2_clicked()
+{
+	return;
+}
+
+void GameWindow::on_button_card_3_clicked()
+{
+	return;
+}
+
+void GameWindow::on_button_card_4_clicked()
+{
+	return;
+}
+
+void GameWindow::on_button_card_5_clicked()
 {
 	return;
 }

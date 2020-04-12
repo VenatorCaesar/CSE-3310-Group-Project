@@ -6,11 +6,28 @@
 #include <set>
 #include <utility>
 #include <vector>
+#include <string>
 #include "asio.hpp"
 #include "chat_message.hpp"
 #include "Deck.hpp"
 #include "Player.hpp"
 #include "Poker.hpp"
+#include "json.hpp"
+
+
+#define RAISE 0
+#define CALL 1
+#define CHECK 2
+#define FOLD 3
+#define BUYIN 4
+#define TRADE 5
+#define ALLIN 6
+#define NEW_PLAYER 7//
+#define DEL_PLAYER 8//
+#define UID 9//
+#define HANDS 10//
+#define GAME_OVER 11
+#define NEW_TURN 12
 
 using asio::ip::tcp;
 
@@ -66,9 +83,6 @@ class chat_room
   			std::set<chat_participant_ptr> participants_;
   			enum { max_recent_msgs = 100 }; // CSE3310 This is the number of maximum stored messages
   			chat_message_queue recent_msgs_;
-			std::vector<Player*> activePlayers;
-			std::vector<Player*> standbyPlayers;
-			std::vector<Player*> spectators;
 };
 
 //----------------------------------------------------------------------
@@ -78,6 +92,10 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 	public:
   		chat_session(tcp::socket socket, chat_room& room): socket_(std::move(socket)),room_(room)
   		{
+			game_on = false;
+			turn = 1;
+			uids = 1000;
+			round = 0;
   		}
 
   		void start()
@@ -112,6 +130,102 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
           			}
  			});
   		}
+		
+		void game_start()
+		{
+			//rock on
+			game_on = true;
+			deck = new Deck();
+										
+			//create a vector of char* to hold the hands
+			std::vector<char*> hands;
+										
+			for(unsigned int i = 0; i < players.size(); i++) // for each player create a char* of size 5
+			{
+				char hand[5] = {0,0,0,0,0};
+				hands.push_back(hand); // add the char* to the vector
+			}
+			
+			//adds 1 card to each hand 5 times
+			for(int i = 0; i < 5; i++)
+			{
+				for(auto hand : hands)
+				{
+					hand[i] = deck->getTopCard();
+				}
+			}
+			
+			//set the players' hands and turn id, pot
+			for(unsigned int i = 0; i < players.size(); i++)
+			{
+				players.at(i)->setHand(hands.at(i));
+				players.at(i)->setTurnID(i+1);
+				
+				nlohmann::json::object_t object_value = {{"action",HANDS},{"uid",players.at(i)->getUID()},{"hand",players.at(i)->getHand()},{"turnID",players.at(i)->getTurnID()},{"round",round}}; // configure json object with parameters
+				nlohmann::json j_object_value(object_value); // add it to the json
+				
+				std::stringstream ss;
+				ss << j_object_value; // move the json into a string format
+				std::string js = ss.str(); // put it into a string
+				
+				chat_message msg;
+				msg.body_length(std::strlen(js.c_str()));// encode the string
+				std::memcpy(msg.body(),js.c_str(), msg.body_length());
+				msg.encode_header();
+									
+				room_.deliver(msg); // delivers message to everyone connected
+			}
+		}
+		
+		void game_over()
+		{
+			//
+		}
+		
+		void new_turn()
+		{
+			if((turn == players.size()) && (round < 4))
+			{
+				round++;
+				turn = 1;
+											
+				//send message to next player
+				nlohmann::json::object_t object_value = {{"action",NEW_TURN},{"round",round},{"turn",turn},{"pot",pot},{"minBet",minBet},{"uid",players.at(turn-1)->getUID()}}; // configure json object with parameters
+				nlohmann::json j_object_value(object_value); // add it to the json
+				
+				std::stringstream ss;
+				ss << j_object_value; // move the json into a string format
+				std::string js = ss.str(); // put it into a string
+											
+				chat_message msg;
+				msg.body_length(std::strlen(js.c_str()));// encode the string
+				std::memcpy(msg.body(),js.c_str(), msg.body_length());
+				msg.encode_header();
+																
+				room_.deliver(msg); // delivers message to everyone connected
+			}
+			else if(round < 4)
+			{
+				turn++;
+				nlohmann::json::object_t object_value = {{"action",NEW_TURN},{"round",round},{"turn",turn},{"pot",pot},{"minBet",minBet},{"uid",players.at(turn-1)->getUID()}}; // configure json object with parameters
+				nlohmann::json j_object_value(object_value); // add it to the json
+				
+				std::stringstream ss;
+				ss << j_object_value; // move the json into a string format
+				std::string js = ss.str(); // put it into a string
+											
+				chat_message msg;
+				msg.body_length(std::strlen(js.c_str()));// encode the string
+				std::memcpy(msg.body(),js.c_str(), msg.body_length());
+				msg.encode_header();
+															
+				room_.deliver(msg); // delivers message to everyone connected
+			}
+			else
+			{
+				game_over();
+			}
+		}
 
   		void do_read_body()
   		{
@@ -120,7 +234,208 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
         		{
           			if (!ec)
           			{
-            				room_.deliver(read_msg_);
+            				//read action
+							std::stringstream ss;
+							ss.write(read_msg_.body(),read_msg_.body_length()); //puts the message into string format
+							
+							nlohmann::json jstring; // create a json object to parse the string
+							ss >> jstring; // put the string into the json object
+							ss.str(""); // clears the string stream
+							
+							int action = jstring["action"];
+							switch(action)
+							{
+								case RAISE:
+								{
+									unsigned int turnID = jstring["turnID"];
+									std::string uid = jstring["uid"];
+									
+									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
+									{
+										Player* p = players.at(turn);
+										p->addAmountBet(jstring["value"]);
+										minBet = p->getAmountBet();
+										pot = jstring["pot"];
+										
+										new_turn();
+									}
+									
+									break;
+								}
+								case CALL:
+								{
+									unsigned int turnID = jstring["turnID"];
+									std::string uid = jstring["uid"];
+									
+									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
+									{
+										Player* p = players.at(turn);
+										p->addAmountBet(jstring["value"]);
+										pot = jstring["pot"];
+										
+										new_turn();
+									}
+									
+									break;
+								}
+								case CHECK:
+								{
+									unsigned int turnID = jstring["turnID"];
+									std::string uid = jstring["uid"];
+									
+									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 1) || (round == 3)))
+									{
+										new_turn();
+									}
+									
+									break;
+								}
+								case FOLD:
+								{
+									unsigned int turnID = jstring["turnID"];
+									std::string uid = jstring["uid"];
+									
+									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0))
+									{
+										Player* p = players.at(turn);
+										//remove p from vector players and put it into standby
+										//
+										standbyPlayers.push_back(p);
+										
+										new_turn();
+									}
+									
+									break;
+								}
+								case BUYIN:
+								{
+									unsigned int turnID = jstring["turnID"];
+									std::string uid = jstring["uid"];
+									
+									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && (round == 0))
+									{
+										Player* p = players.at(turn);
+										p->addAmountBet(jstring["value"]);
+										minBet = p->getAmountBet();
+										pot = jstring["pot"];
+										
+										new_turn();
+									}
+									
+									break;
+								}
+								case TRADE:
+								{
+									unsigned int turnID = jstring["turnID"];
+									std::string uid = jstring["uid"];
+									
+									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && (round == 2))
+									{
+										
+									}
+									
+									break;
+								}
+								case ALLIN:
+								{
+									unsigned int turnID = jstring["turnID"];
+									std::string uid = jstring["uid"];
+									
+									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
+									{
+										Player* p = players.at(turn);
+										p->addAmountBet(jstring["value"]);
+										minBet = p->getAmountBet();
+										pot = jstring["pot"];
+										
+										new_turn();
+									}
+									
+									break;
+								}
+								case NEW_PLAYER:
+								{
+									//create new player object
+									Player* new_player = new Player(jstring["name"],jstring["age"]);
+									
+									// create a string version of the uid
+									ss << uids;
+									new_player->setUID(ss.str()); //set the player's uid
+									uids++; // increment the uids
+									ss.str(""); // clear the stream
+									
+									// add the player to the vector
+									if(players.size() < 5) // if the current player vector is full, add to spectator
+									{
+										players.push_back(new_player);
+									}
+									else
+									{
+										spectators.push_back(new_player);
+									}
+									
+									nlohmann::json::object_t object_value = {{"action",UID},{"age",new_player->getAge()},{"name",new_player->getName()},{"uid",new_player->getUID()}}; // configure json object with parameters
+									nlohmann::json j_object_value(object_value); // add it to the json
+									
+									ss << j_object_value; // move the json into a string format
+									std::string js = ss.str(); // put it into a string
+	
+									chat_message msg;
+									msg.body_length(std::strlen(js.c_str()));// encode the string
+									std::memcpy(msg.body(),js.c_str(), msg.body_length());
+									msg.encode_header();
+									
+									room_.deliver(msg); // delivers message to everyone connected
+									
+									//check to see if 2 or more players are connected
+									if((players.size() >= 2) && !game_on)
+									{
+										game_start();
+									}
+									
+									break;
+								}
+								case DEL_PLAYER:
+								{
+									/*
+									//go through all the players in the active players vector
+									auto it = players.begin()
+									for(it; it != players.end(); it++)
+									{
+										if(p->getUID().compare(jstring["uid"])) // if the uids sent to the server and the player's uid are the same, delete the player
+										{
+											Player* temp = p; // copy the address into a temp variable
+											players.erase(p); // remove the player from the vector
+											delete temp; // delete the memory of the player
+										}
+									}
+									
+									//go through all the players in the standby vector
+									for(Player* p : standbyPlayers)
+									{
+										if(p->getUID().compare(jstring["uid"])) // if the uids sent to the server and the player's uid are the same, delete the player
+										{
+											Player* temp = p; // copy the address into a temp variable
+											standbyPlayers.erase(p); // remove the player from the vector
+											delete temp; // delete the memory of the player
+										}
+									}
+									
+									//go through all the players in the spectator vector
+									for(Player* p : spectators)
+									{
+										if(p->getUID().compare(jstring["uid"])) // if the uids sent to the server and the player's uid are the same, delete the player
+										{
+											Player* temp = p; // copy the address into a temp variable
+											spectators.erase(p); // remove the player from the vector
+											delete temp; // delete the memory of the player
+										}
+									}
+									*/
+									break;
+								}
+							}
+							//room_.deliver(read_msg_); // delivers message to everyone connected
             				do_read_header();
           			}
           			else
@@ -149,7 +464,17 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
           			}
         		});
   		}
-
+		
+		int uids;
+		bool game_on;
+		unsigned int turn;
+		int pot;
+		int minBet;
+		int round;
+		std::vector<Player*> players;
+		std::vector<Player*> standbyPlayers;
+		std::vector<Player*> spectators;
+		Deck* deck;
   		tcp::socket socket_;
   		chat_room& room_;
   		chat_message read_msg_;

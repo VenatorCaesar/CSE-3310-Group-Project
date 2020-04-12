@@ -1,8 +1,8 @@
 #include "Deck.hpp"
 
-
 Deck::Deck()
 {
+	topCard = DECK_SIZE-1;
 	generateDeck();
 }
 
@@ -20,8 +20,7 @@ void Deck::generateDeck()
 		for(int j = 1; j <= 0x0D; j++)
 		{
 			char suit = i << 4;
-			char val = j;
-			deck[index] = suit | j;
+			deck[index] = (suit | j);
 			index++;
 		}
 	}
@@ -44,7 +43,7 @@ void Deck::shuffle()
 	return;
 }
 
-char getTopCard()
+char Deck::getTopCard()
 {
 	return deck[topCard--];
 }

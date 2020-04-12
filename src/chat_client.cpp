@@ -4,9 +4,10 @@ using asio::ip::tcp;
 
 typedef std::deque<chat_message> chat_message_queue;
 
-chat_client::chat_client(asio::io_context& io_context,const tcp::resolver::results_type& endpoints): io_context_(io_context),socket_(io_context)
+chat_client::chat_client(asio::io_context& io_context,const tcp::resolver::results_type& endpoints,Player* m): io_context_(io_context),socket_(io_context)
 {
-			do_connect(endpoints);
+	me = m;
+	do_connect(endpoints);
 }
 
 void chat_client::write(const chat_message& msg)

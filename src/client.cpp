@@ -25,7 +25,7 @@ nlohmann::json* createInfoWindow(int argc, char** argv)
 	
 	app->run(myInfoWindow);
 	
-	nlohmann::json::object_t object_value = {{"age",*age},{"name",*name}};//
+	nlohmann::json::object_t object_value = {{"action",7},{"age",*age},{"name",*name}};//
 	nlohmann::json* j_object_value = new nlohmann::json(object_value);//
 	nlohmann::json myData = *j_object_value;
 	
@@ -54,23 +54,35 @@ int main(int argc, char** argv)
 		//Message to be sent to the server if of age
 		nlohmann::json* creationJSON = createInfoWindow(argc-argc,argv); //argc-argc to have to GUI ignore command line arguments
 		nlohmann::json myData = *creationJSON;
-
+		
+		//Create a player for myself
+		Player* me = new Player(myData["name"],myData["age"]);
+		
 		//Create the io context for the client
 		asio::io_context io_context;
 
 		//Connect to the server
 		tcp::resolver resolver(io_context);
 		auto endpoints = resolver.resolve(argv[1], argv[2]);
-		chat_client* c = new chat_client(io_context, endpoints);
+		chat_client* c = new chat_client(io_context, endpoints,me);
 		assert(c);
 		std::thread t([&io_context](){io_context.run();});
+		
+		//send new player info to the server
+		std::stringstream ss;
+		chat_message msg;
+		ss << myData;
+		std::string js = ss.str();
+	
+		msg.body_length(std::strlen(js.c_str()));//
+		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+		msg.encode_header();
+		
+		c->write(msg);
 		
 		//Get ready to run new GUI window
 		int noArgs = argc-argc;
 		auto app = Gtk::Application::create(noArgs,argv,"");
-		
-		//Create a player for myself
-		Player* me = new Player(myData["name"],myData["age"]);
 		
 		//Get rid of old json variables
 		delete creationJSON;
