@@ -2,6 +2,7 @@
 #include <iostream>
 #include "asio.hpp"
 #include "chat_message.hpp"
+#include "Player.hpp"
 
 using asio::ip::tcp;
 
@@ -10,7 +11,7 @@ typedef std::deque<chat_message> chat_message_queue;
 class chat_client
 {
 	public:
-		chat_client(asio::io_context& io_context,const tcp::resolver::results_type& endpoints);
+		chat_client(asio::io_context& io_context,const tcp::resolver::results_type& endpoints,Player* m);
 		void write(const chat_message& msg);
 		void close();
 	private:
@@ -22,4 +23,5 @@ class chat_client
 		tcp::socket socket_;
 		chat_message read_msg_;
 		chat_message_queue write_msgs_;
+		Player* me;
 };

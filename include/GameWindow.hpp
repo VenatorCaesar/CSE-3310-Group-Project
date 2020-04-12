@@ -6,7 +6,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
-#include "Player.hpp"
+//#include "Player.hpp"
 #include "chat_client.hpp"
 #include "json.hpp"
 
@@ -34,7 +34,11 @@ class GameWindow : public Gtk::Window
 		void addPlayer(Player* player);
 		void removePlayers();
 		void changeCards(Player* player);
-		void on_button_card_clicked();
+		void on_button_card_1_clicked();
+		void on_button_card_2_clicked();
+		void on_button_card_3_clicked();
+		void on_button_card_4_clicked();
+		void on_button_card_5_clicked();
 	protected:
 		Gtk::Box* MainHBox; //
 		Gtk::Box* PlayersVBox; //

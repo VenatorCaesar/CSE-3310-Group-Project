@@ -33,12 +33,12 @@ class Player
 	private:
 		std::string name;
 		int age;
-		std::string uid;
-		int turnID;
-		char hand[HAND_SIZE];
+		std::string uid;//
+		int turnID;//
+		char hand[HAND_SIZE];//
 		int score;
-        int balance;
-		int pot;
+        int balance;//
+		int pot;//
 		int amountBet;
 		int minBetNeeded;
 };
