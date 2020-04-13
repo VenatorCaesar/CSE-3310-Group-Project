@@ -13,6 +13,10 @@ Player::Player(std::string Name, int Age) : name{Name}, age{Age}
 	minBetNeeded = 0;
 }
 
+Player::~Player()
+{
+}
+
 void Player::sortHand() 
 { 
     for (int i = 0; i < HAND_SIZE - 1; i++)  

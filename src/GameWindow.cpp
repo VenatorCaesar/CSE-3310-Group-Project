@@ -5,6 +5,10 @@ GameWindow::GameWindow(Player* p,chat_client* C)
 {
 	me = p;
 	c = C;
+	for(int i = 0; i < 5; i++)
+	{
+		idx[i] = 0;
+	}
 	
 	//Set title and default size
 	set_title("Poker++");
@@ -402,6 +406,25 @@ void GameWindow::on_button_buy_in_clicked()//
 
 void GameWindow::on_button_trade_clicked()
 {
+	int action = TRADE;
+	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"cards",idx}};//
+	nlohmann::json j_object_value(object_value);
+	
+	std::stringstream ss;
+	chat_message msg;
+	ss << j_object_value;
+	std::string js = ss.str();
+	
+	msg.body_length(std::strlen(js.c_str()));//
+	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+	msg.encode_header();
+	c->write(msg);
+	
+	for(int i = 0; i < HAND_SIZE; i++)
+	{
+		idx[i] = 0;
+	}
+	
 	return;
 }
 
@@ -441,7 +464,22 @@ void GameWindow::on_button_all_in_clicked()
 }
 
 void GameWindow::on_button_quit_clicked()
-{	
+{
+	int action = DEL_PLAYER;
+	
+	nlohmann::json::object_t object_value = {{"uid",me->getUID()},{"action",action}};//
+	nlohmann::json j_object_value(object_value);
+	
+	std::stringstream ss;
+	chat_message msg;
+	ss << j_object_value;
+	std::string js = ss.str();
+	
+	msg.body_length(std::strlen(js.c_str()));//
+	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+	msg.encode_header();
+	c->write(msg);
+	
 	hide();
 }
 
@@ -557,25 +595,30 @@ void GameWindow::changeCards(Player* player)
 
 void GameWindow::on_button_card_1_clicked()
 {
+	idx[0] = !idx[0];
 	return;
 }
 
 void GameWindow::on_button_card_2_clicked()
 {
+	idx[1] = !idx[1];
 	return;
 }
 
 void GameWindow::on_button_card_3_clicked()
 {
+	idx[2] = !idx[2];
 	return;
 }
 
 void GameWindow::on_button_card_4_clicked()
 {
+	idx[3] = !idx[3];
 	return;
 }
 
 void GameWindow::on_button_card_5_clicked()
 {
+	idx[4] = !idx[4];
 	return;
 }

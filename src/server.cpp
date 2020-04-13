@@ -15,19 +15,20 @@
 #include "json.hpp"
 
 
-#define RAISE 0
-#define CALL 1
-#define CHECK 2
+#define RAISE 0//
+#define CALL 1//
+#define CHECK 2//
 #define FOLD 3
-#define BUYIN 4
-#define TRADE 5
-#define ALLIN 6
+#define BUYIN 4//
+#define TRADE 5//
+#define ALLIN 6//
 #define NEW_PLAYER 7//
 #define DEL_PLAYER 8//
 #define UID 9//
 #define HANDS 10//
 #define GAME_OVER 11
-#define NEW_TURN 12
+#define NEW_TURN 12//
+#define NEW_HAND 13//
 
 using asio::ip::tcp;
 
@@ -159,6 +160,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 			for(unsigned int i = 0; i < players.size(); i++)
 			{
 				players.at(i)->setHand(hands.at(i));
+				players.at(i)->sortHand();
 				players.at(i)->setTurnID(i+1);
 				
 				nlohmann::json::object_t object_value = {{"action",HANDS},{"uid",players.at(i)->getUID()},{"hand",players.at(i)->getHand()},{"turnID",players.at(i)->getTurnID()},{"round",round}}; // configure json object with parameters
@@ -179,7 +181,84 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 		
 		void game_over()
 		{
-			//
+			int high_score = 0;
+			Player* highest_scoring_player;
+			bool tie = false;
+			int i = 1;
+			
+			for(Player* p : players)
+			{
+				p->setScore(scoreHand(p->getHand()));
+				if(p->getScore() > high_score)
+				{
+					highest_scoring_player = p;
+					high_score = p->getScore();
+					tie = false;
+					i = 1;
+				}
+				else if(p->getScore() == high_score)
+				{
+					tie = true;
+					i++;
+				}
+			}
+			
+			int action = GAME_OVER;
+			
+			if(tie)
+			{	
+				std::string uidstrings[i];
+				int j = 0;
+				
+				for(Player* p : players)
+				{
+					if(p->getScore() == high_score)
+					{
+						uidstrings[j] = p->getUID();
+						j++;
+					}
+				}
+				
+				nlohmann::json::object_t object_value = {{"action",action},{"tie",tie},{"uid1",uidstrings[0]},{"uid2",uidstrings[1]},{"uid3",uidstrings[2]},{"uid4",uidstrings[3]},{"uid5",uidstrings[4]}}; // configure json object with parameters
+				nlohmann::json j_object_value(object_value); // add it to the json
+				
+				std::stringstream ss;
+				ss << j_object_value; // move the json into a string format
+				std::string js = ss.str(); // put it into a string
+				
+				chat_message msg;
+				msg.body_length(std::strlen(js.c_str()));// encode the string
+				std::memcpy(msg.body(),js.c_str(), msg.body_length());
+				msg.encode_header();
+									
+				room_.deliver(msg); // delivers message to everyone connected
+			}
+			else
+			{
+				nlohmann::json::object_t object_value = {{"action",action},{"tie",tie},{"uid",highest_scoring_player->getUID()}}; // configure json object with parameters
+				nlohmann::json j_object_value(object_value); // add it to the json
+				
+				std::stringstream ss;
+				ss << j_object_value; // move the json into a string format
+				std::string js = ss.str(); // put it into a string
+				
+				chat_message msg;
+				msg.body_length(std::strlen(js.c_str()));// encode the string
+				std::memcpy(msg.body(),js.c_str(), msg.body_length());
+				msg.encode_header();
+									
+				room_.deliver(msg); // delivers message to everyone connected
+			}
+			
+			game_on = false;
+			
+			for(auto it = standbyPlayers.begin(); it != standbyPlayers.end(); it++)
+			{
+				Player* p = *it;
+				
+				standbyPlayers.erase(it);
+				players.push_back(p);
+			}
 		}
 		
 		void new_turn()
@@ -250,9 +329,9 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
 									{
-										Player* p = players.at(turn);
+										Player* p = players.at(turn-1);
 										p->addAmountBet(jstring["value"]);
 										minBet = p->getAmountBet();
 										pot = jstring["pot"];
@@ -267,9 +346,9 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
 									{
-										Player* p = players.at(turn);
+										Player* p = players.at(turn-1);
 										p->addAmountBet(jstring["value"]);
 										pot = jstring["pot"];
 										
@@ -283,7 +362,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 1) || (round == 3)))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 1) || (round == 3)))
 									{
 										new_turn();
 									}
@@ -295,11 +374,20 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0))
 									{
-										Player* p = players.at(turn);
-										//remove p from vector players and put it into standby
-										//
+										Player* p = players.at(turn-1);
+										
+										for(auto it = players.begin(); it != players.end(); it++)
+										{
+											Player* p1 = *it;
+											
+											if(p1->getUID().compare(p->getUID()))
+											{
+												players.erase(it);
+											}
+										}
+										
 										standbyPlayers.push_back(p);
 										
 										new_turn();
@@ -312,9 +400,9 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && (round == 0))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && (round == 0))
 									{
-										Player* p = players.at(turn);
+										Player* p = players.at(turn-1);
 										p->addAmountBet(jstring["value"]);
 										minBet = p->getAmountBet();
 										pot = jstring["pot"];
@@ -329,9 +417,33 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && (round == 2))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && (round == 2))
 									{
+										for(int i = 0; i < 5; i++)
+										{
+											int j = jstring["cards"][i];
+											if(j)
+											{
+												players.at(turn-1)->replaceCard(i,deck->getTopCard());
+											}
+										}
 										
+										turn++;
+										nlohmann::json::object_t object_value = {{"action",NEW_HAND},{"turn",turn},{"uid",players.at(turn-1)->getUID()},{"hand",players.at(turn-1)->getHand()}}; // configure json object with parameters
+										nlohmann::json j_object_value(object_value); // add it to the json
+										
+										std::stringstream ss;
+										ss << j_object_value; // move the json into a string format
+										std::string js = ss.str(); // put it into a string
+																	
+										chat_message msg;
+										msg.body_length(std::strlen(js.c_str()));// encode the string
+										std::memcpy(msg.body(),js.c_str(), msg.body_length());
+										msg.encode_header();
+																					
+										room_.deliver(msg); // delivers message to everyone connected
+										
+										new_turn();
 									}
 									
 									break;
@@ -341,9 +453,9 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
 									{
-										Player* p = players.at(turn);
+										Player* p = players.at(turn-1);
 										p->addAmountBet(jstring["value"]);
 										minBet = p->getAmountBet();
 										pot = jstring["pot"];
@@ -365,7 +477,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									ss.str(""); // clear the stream
 									
 									// add the player to the vector
-									if(players.size() < 5) // if the current player vector is full, add to spectator
+									if((players.size() < 5) && (!game_on)) // if the current player vector is full, add to spectator
 									{
 										players.push_back(new_player);
 									}
@@ -397,41 +509,46 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 								}
 								case DEL_PLAYER:
 								{
-									/*
+									
 									//go through all the players in the active players vector
-									auto it = players.begin()
-									for(it; it != players.end(); it++)
+									
+									for(auto it = players.begin(); it != players.end(); it++)
 									{
-										if(p->getUID().compare(jstring["uid"])) // if the uids sent to the server and the player's uid are the same, delete the player
+										Player* p = *it;
+										
+										if(p->getUID().compare(jstring["uid"]))
 										{
-											Player* temp = p; // copy the address into a temp variable
-											players.erase(p); // remove the player from the vector
-											delete temp; // delete the memory of the player
+											players.erase(it);
+											delete p;
 										}
 									}
 									
 									//go through all the players in the standby vector
-									for(Player* p : standbyPlayers)
+									
+									for(auto it = standbyPlayers.begin(); it != standbyPlayers.end(); it++)
 									{
-										if(p->getUID().compare(jstring["uid"])) // if the uids sent to the server and the player's uid are the same, delete the player
+										Player* p = *it;
+										
+										if(p->getUID().compare(jstring["uid"]))
 										{
-											Player* temp = p; // copy the address into a temp variable
-											standbyPlayers.erase(p); // remove the player from the vector
-											delete temp; // delete the memory of the player
+											players.erase(it);
+											delete p;
 										}
 									}
 									
 									//go through all the players in the spectator vector
-									for(Player* p : spectators)
+									
+									for(auto it = spectators.begin(); it != spectators.end(); it++)
 									{
-										if(p->getUID().compare(jstring["uid"])) // if the uids sent to the server and the player's uid are the same, delete the player
+										Player* p = *it;
+										
+										if(p->getUID().compare(jstring["uid"]))
 										{
-											Player* temp = p; // copy the address into a temp variable
-											spectators.erase(p); // remove the player from the vector
-											delete temp; // delete the memory of the player
+											players.erase(it);
+											delete p;
 										}
 									}
-									*/
+									
 									break;
 								}
 							}
