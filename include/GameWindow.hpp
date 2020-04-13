@@ -17,6 +17,7 @@
 #define BUYIN 4
 #define TRADE 5
 #define ALLIN 6
+#define DEL_PLAYER 8
 
 class GameWindow : public Gtk::Window
 {
@@ -65,4 +66,5 @@ class GameWindow : public Gtk::Window
 		Gtk::Image* cardImages[4][13];//
 		Gtk::Image* backOfCard;//
 		chat_client* c;
+		int idx[5];
 };
