@@ -19,14 +19,6 @@
 #define ALLIN 6
 #define DEL_PLAYER 8
 
-class ExitDialog : public Gtk::Dialog
-{
-	public:
-		ExitDialog(Player* p);
-		~ExitDialog();
-	protected:
-};
-
 class GameWindow : public Gtk::Window
 {
 	public:
