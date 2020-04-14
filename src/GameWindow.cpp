@@ -1,18 +1,6 @@
 
 #include "GameWindow.hpp"
 
-ExitDialog::ExitDialog(Player* p)
-{
-	add_button("Continue", 0);
-	add_button("Exit", 1);
-	show_all_children();
-}
-
-ExitDialog::~ExitDialog()
-{
-
-}
-
 GameWindow::GameWindow(Player* p,chat_client* C)
 {
 	me = p;
