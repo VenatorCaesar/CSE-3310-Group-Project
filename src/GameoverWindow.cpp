@@ -2,7 +2,7 @@
 
 /*
 	result: 0 for loss
-			1 for won
+		1 for won
 */
 GameoverWindow::GameoverWindow(int result)
 {
