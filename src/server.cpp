@@ -91,11 +91,12 @@ class chat_room
 class chat_session : public chat_participant, public std::enable_shared_from_this<chat_session>
 {
 	public:
+		static int uids;
   		chat_session(tcp::socket socket, chat_room& room): socket_(std::move(socket)),room_(room)
   		{
 			game_on = false;
 			turn = 1;
-			uids = 1000;
+			//uids = 1000;
 			round = 0;
   		}
 
@@ -582,7 +583,6 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
         		});
   		}
 		
-		int uids;
 		bool game_on;
 		unsigned int turn;
 		int pot;
@@ -626,6 +626,8 @@ class chat_server
   		chat_room room_;
 };
 
+//----------------------------------------------------------------------
+int chat_session::uids = 1000;
 //----------------------------------------------------------------------
 
 int main(int argc, char* argv[])
