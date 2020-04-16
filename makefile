@@ -22,6 +22,7 @@ CPPFLAGS = -I./include -I./asio-1.12.2/include
 all : $(EXE) $(EXE2) asio-1.12.2
 	-rm -r $(OBJ7)
 	-rm -r $(OBJ6)
+	-rm -r $(OBJ5)
 	-rm -r $(OBJ4)
 	-rm -f $(OBJ3)
 	-rm -f $(OBJ2)
