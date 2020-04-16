@@ -1,5 +1,8 @@
 #include <iostream>
 
+#ifndef PLAYER_HPP
+#define PLAYER_HPP
+
 #define HAND_SIZE 5
 
 class Player
@@ -29,6 +32,8 @@ class Player
 		int getAmountBet();
 		void setMinBetNeeded(int new_amount);
 		int getMinBetNeeded();
+		int round;
+		int turn;
 	
 	private:
 		std::string name;
@@ -42,3 +47,5 @@ class Player
 		int amountBet;
 		int minBetNeeded;
 };
+
+#endif

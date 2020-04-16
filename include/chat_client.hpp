@@ -3,10 +3,15 @@
 #include "asio.hpp"
 #include "chat_message.hpp"
 #include "Player.hpp"
+#include <gtkmm.h>
+#include <vector>
 
 using asio::ip::tcp;
 
 typedef std::deque<chat_message> chat_message_queue;
+
+#ifndef CHAT_CLIENT_HPP
+#define CHAT_CLIENT_HPP
 
 class chat_client
 {
@@ -24,4 +29,9 @@ class chat_client
 		chat_message read_msg_;
 		chat_message_queue write_msgs_;
 		Player* me;
+		std::vector<Player*> listOfOpponents;
+		std::vector<std::string> listOfSpectators;
+		int turn;
 };
+
+#endif

@@ -40,13 +40,18 @@ class GameWindow : public Gtk::Window
 		void on_button_card_3_clicked();
 		void on_button_card_4_clicked();
 		void on_button_card_5_clicked();
+		void updatePot();
+		void updateRound();
+		void updateTurn();
+		void updateSpecList(std::string list);
 	protected:
 		Gtk::Box* MainHBox; //
 		Gtk::Box* PlayersVBox; //
 		Gtk::Box* ValuesVBox;//
 		Gtk::Label* balance;//
 		Gtk::Label* pot;//
-		Gtk::Label* round;//
+		Gtk::Label* roundL;//
+		Gtk::Label* turnL;
 		Gtk::Box* ButtonsVBox;//
 		Gtk::Box* RaiseHBox;//
 		Gtk::Button* raiseButton;//
