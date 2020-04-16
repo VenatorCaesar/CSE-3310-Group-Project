@@ -2,7 +2,7 @@ SRC1 = src/client.cpp
 SRC2 = src/InfoWindow.cpp
 SRC3 = src/GameWindow.cpp
 SRC4 = src/Player.cpp
-SRC5 = src/chat_client.cpp
+SRC5 = src/GameoverWindow.cpp
 SRC6 = src/server.cpp
 SRC7 = src/Deck.cpp
 OBJ1 = $(SRC1:.cpp=.o)
@@ -22,7 +22,6 @@ CPPFLAGS = -I./include -I./asio-1.12.2/include
 all : $(EXE) $(EXE2) asio-1.12.2
 	-rm -r $(OBJ7)
 	-rm -r $(OBJ6)
-	-rm -r $(OBJ5)
 	-rm -r $(OBJ4)
 	-rm -f $(OBJ3)
 	-rm -f $(OBJ2)
