@@ -29,6 +29,7 @@
 #define GAME_OVER 11
 #define NEW_TURN 12//
 #define NEW_HAND 13//
+#define SPEC 14
 
 using asio::ip::tcp;
 
@@ -91,14 +92,28 @@ class chat_room
 class chat_session : public chat_participant, public std::enable_shared_from_this<chat_session>
 {
 	public:
-		static int uids;
   		chat_session(tcp::socket socket, chat_room& room): socket_(std::move(socket)),room_(room)
   		{
-			game_on = false;
-			turn = 1;
-			//uids = 1000;
-			round = 0;
   		}
+		~chat_session()
+		{
+			for(Player* p : players)
+			{
+				delete p;
+			}
+			
+			for(Player* p : standbyPlayers)
+			{
+				delete p;
+			}
+			
+			for(Player* p : spectators)
+			{
+				delete p;
+			}
+			
+			delete deck;
+		}
 
   		void start()
   		{
@@ -115,6 +130,17 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
       				do_write();
     			}
   		}
+		
+		static int uids;
+		static bool game_on;
+		static unsigned int turn;
+		static int pot;
+		static int minBet;
+		static int round;
+		static std::vector<Player*> players;
+		static std::vector<Player*> standbyPlayers;
+		static std::vector<Player*> spectators;
+		static Deck* deck;
 
 	private:
   		void do_read_header()
@@ -137,7 +163,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 		{
 			//rock on
 			game_on = true;
-			deck = new Deck();
+			//deck = new Deck();
 										
 			//create a vector of char* to hold the hands
 			std::vector<char*> hands;
@@ -148,23 +174,21 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 				hands.push_back(hand); // add the char* to the vector
 			}
 			
-			//adds 1 card to each hand 5 times
-			for(int i = 0; i < 5; i++)
-			{
-				for(auto hand : hands)
-				{
-					hand[i] = deck->getTopCard();
-				}
-			}
-			
 			//set the players' hands and turn id, pot
 			for(unsigned int i = 0; i < players.size(); i++)
 			{
-				players.at(i)->setHand(hands.at(i));
+				char hand[5];
+				
+				for(int i = 0; i < 5; i++)
+				{
+					hand[i] = deck->getTopCard();
+				}
+				
+				players.at(i)->setHand(hand);
 				players.at(i)->sortHand();
 				players.at(i)->setTurnID(i+1);
 				
-				nlohmann::json::object_t object_value = {{"action",HANDS},{"uid",players.at(i)->getUID()},{"hand",players.at(i)->getHand()},{"turnID",players.at(i)->getTurnID()},{"round",round}}; // configure json object with parameters
+				nlohmann::json::object_t object_value = {{"action",HANDS},{"uid",players.at(i)->getUID()},{"name",players.at(i)->getName()},{"age",players.at(i)->getAge()},{"hand",players.at(i)->getHand()},{"turnID",players.at(i)->getTurnID()},{"round",round},{"turn",turn}}; // configure json object with parameters
 				nlohmann::json j_object_value(object_value); // add it to the json
 				
 				std::stringstream ss;
@@ -220,7 +244,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 					}
 				}
 				
-				nlohmann::json::object_t object_value = {{"action",action},{"tie",tie},{"uid1",uidstrings[0]},{"uid2",uidstrings[1]},{"uid3",uidstrings[2]},{"uid4",uidstrings[3]},{"uid5",uidstrings[4]}}; // configure json object with parameters
+				nlohmann::json::object_t object_value = {{"action",action},{"tie",tie},{"uid1",uidstrings[0]},{"uid2",uidstrings[1]},{"uid3",uidstrings[2]},{"uid4",uidstrings[3]},{"uid5",uidstrings[4]},{"round",4}}; // configure json object with parameters
 				nlohmann::json j_object_value(object_value); // add it to the json
 				
 				std::stringstream ss;
@@ -236,7 +260,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 			}
 			else
 			{
-				nlohmann::json::object_t object_value = {{"action",action},{"tie",tie},{"uid",highest_scoring_player->getUID()}}; // configure json object with parameters
+				nlohmann::json::object_t object_value = {{"action",action},{"tie",tie},{"uid",highest_scoring_player->getUID()},{"round",4}}; // configure json object with parameters
 				nlohmann::json j_object_value(object_value); // add it to the json
 				
 				std::stringstream ss;
@@ -260,6 +284,8 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 				standbyPlayers.erase(it);
 				players.push_back(p);
 			}
+			
+			deck->generateDeck();
 		}
 		
 		void new_turn()
@@ -333,7 +359,8 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
 									{
 										Player* p = players.at(turn-1);
-										p->addAmountBet(jstring["value"]);
+										int val = jstring["value"];
+										p->addAmountBet(val);
 										minBet = p->getAmountBet();
 										pot = jstring["pot"];
 										
@@ -350,7 +377,8 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
 									{
 										Player* p = players.at(turn-1);
-										p->addAmountBet(jstring["value"]);
+										int val = jstring["value"];
+										p->addAmountBet(val);
 										pot = jstring["pot"];
 										
 										new_turn();
@@ -398,13 +426,16 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 								}
 								case BUYIN:
 								{
+									std::cout << "Fine1\n";
 									unsigned int turnID = jstring["turnID"];
+									std::cout << "Fine2\n";
 									std::string uid = jstring["uid"];
 									
 									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && (round == 0))
 									{
 										Player* p = players.at(turn-1);
-										p->addAmountBet(jstring["value"]);
+										int val = jstring["value"];
+										p->addAmountBet(val);
 										minBet = p->getAmountBet();
 										pot = jstring["pot"];
 										
@@ -457,7 +488,8 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 0) || (round == 1) || (round == 3)))
 									{
 										Player* p = players.at(turn-1);
-										p->addAmountBet(jstring["value"]);
+										int val = jstring["value"];
+										p->addAmountBet(val);
 										minBet = p->getAmountBet();
 										pot = jstring["pot"];
 										
@@ -468,6 +500,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 								}
 								case NEW_PLAYER:
 								{
+									//std::cout << "New player!\n";
 									//create new player object
 									Player* new_player = new Player(jstring["name"],jstring["age"]);
 									
@@ -485,6 +518,27 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									else
 									{
 										spectators.push_back(new_player);
+										//send each client a list of spectators
+										int dim = spectators.size();
+										nlohmann::json js;
+										
+										for(int i = 0; i < dim; i++)
+										{
+											ss << "name" << i;
+											js[ss.str()] = spectators.at(i)->getName();
+											ss.str("");
+										}
+										
+										js["action"] = SPEC;
+										ss << js; // move the json into a string format
+										std::string jstr = ss.str(); // put it into a string
+										
+										chat_message msg;
+										msg.body_length(std::strlen(jstr.c_str()));// encode the string
+										std::memcpy(msg.body(),jstr.c_str(), msg.body_length());
+										msg.encode_header();
+											
+										room_.deliver(msg); // delivers message to everyone connected
 									}
 									
 									nlohmann::json::object_t object_value = {{"action",UID},{"age",new_player->getAge()},{"name",new_player->getName()},{"uid",new_player->getUID()}}; // configure json object with parameters
@@ -492,6 +546,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									
 									ss << j_object_value; // move the json into a string format
 									std::string js = ss.str(); // put it into a string
+									ss.str("");
 	
 									chat_message msg;
 									msg.body_length(std::strlen(js.c_str()));// encode the string
@@ -583,15 +638,6 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
         		});
   		}
 		
-		bool game_on;
-		unsigned int turn;
-		int pot;
-		int minBet;
-		int round;
-		std::vector<Player*> players;
-		std::vector<Player*> standbyPlayers;
-		std::vector<Player*> spectators;
-		Deck* deck;
   		tcp::socket socket_;
   		chat_room& room_;
   		chat_message read_msg_;
@@ -628,7 +674,15 @@ class chat_server
 
 //----------------------------------------------------------------------
 int chat_session::uids = 1000;
-//----------------------------------------------------------------------
+bool chat_session::game_on = false;
+unsigned int chat_session::turn = 1;
+int chat_session::pot = 0;
+int chat_session::minBet = 0;
+int chat_session::round = 0;
+std::vector<Player*> chat_session::players;
+std::vector<Player*> chat_session::standbyPlayers;
+std::vector<Player*> chat_session::spectators;
+Deck* chat_session::deck = new Deck();
 
 int main(int argc, char* argv[])
 {

@@ -11,6 +11,8 @@ Player::Player(std::string Name, int Age) : name{Name}, age{Age}
 	pot = 0;
 	amountBet = 0;
 	minBetNeeded = 0;
+	turn = 0;
+	round = 0;
 }
 
 Player::~Player()

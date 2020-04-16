@@ -4,8 +4,10 @@
 	result: 0 for loss
 		1 for won
 */
-GameoverWindow::GameoverWindow(int result)
+GameoverWindow::GameoverWindow(int result, chat_client* C, Player* p)
 {
+	c = C;
+	me = p;
 	set_title("Poker++");
 	set_default_size(125, 125);
 
@@ -47,15 +49,31 @@ GameoverWindow::GameoverWindow(int result)
 
 GameoverWindow::~GameoverWindow()
 {
-
+	delete MainBox;
 }
 
 void GameoverWindow::on_button_continue_clicked()
 {
-	// Do something
+	hide();
 }
 
 void GameoverWindow::on_button_quit_clicked()
 {
-	// Do something
+	int action = DEL_PLAYER;
+		
+	nlohmann::json::object_t object_value = {{"uid",me->getUID()},{"action",action}};//
+	nlohmann::json j_object_value(object_value);
+		
+	std::stringstream ss;
+	chat_message msg;
+	ss << j_object_value;
+	std::string js = ss.str();
+		
+	msg.body_length(std::strlen(js.c_str()));//
+	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+	msg.encode_header();
+	c->write(msg);
+		
+	hide();
+	abort();
 }

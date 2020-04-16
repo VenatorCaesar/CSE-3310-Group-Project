@@ -62,4 +62,5 @@ void InfoWindow::on_button_join_in_clicked()
 void InfoWindow::on_button_exit_clicked()
 {
 	hide();
+	abort();
 }

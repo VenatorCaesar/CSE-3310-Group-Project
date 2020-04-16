@@ -39,8 +39,11 @@ GameWindow::GameWindow(Player* p,chat_client* C)
 	ValuesVBox->add(*pot);
 	ss.str("");
 	
-	round = Gtk::manage(new Gtk::Label{"Round 1"});
-	ValuesVBox->add(*round);
+	roundL = Gtk::manage(new Gtk::Label{"Round 0"});
+	ValuesVBox->add(*roundL);
+	
+	turnL = Gtk::manage(new Gtk::Label{"Turn 1"});
+	ValuesVBox->add(*turnL);
 	
 	//Adds VBox for buttons
 	ButtonsVBox = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_VERTICAL,0));
@@ -129,126 +132,262 @@ GameWindow::~GameWindow()
 
 void GameWindow::on_button_raise_clicked()//
 {
-	//Grab text
-	std::string entered = raiseField->get_text();
-	//Convert to int
-	int val = std::stoi(entered);
-	
-	//If entered exceeds funds, go all in
-	if(val > me->getBalance())
+	if((me->turn == me->getTurnID()) && (me->round != 2))
 	{
-		//set status to all in
-		val = me->getBalance();
-		int action = ALLIN;
+		//Grab text
+		std::string entered = raiseField->get_text();
+		//Convert to int
+		int val = std::stoi(entered);
 		
-		me->setPot(me->getPot() + val);
+		//If entered exceeds funds, go all in
+		if(val > me->getBalance())
+		{
+			//set status to all in
+			val = me->getBalance();
+			int action = ALLIN;
+			
+			me->setPot(me->getPot() + val);
+			
+			//Update balance
+			std::stringstream ss;
+			ss << "Balance: $" << me->getBalance();
+			balance->set_text(ss.str());
+			ss.str("");
+		
+			//Needs to update pot value and update the label for the pot value
+			ss << "Pot Value: $" << me->getPot();
+			pot->set_text(ss.str());
+			ss.str("");
+			
+			chat_message msg;
+			nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
+			nlohmann::json j_object_value(object_value);
+		
+			ss << j_object_value;
+			std::string js = ss.str();
+		
+			msg.body_length(std::strlen(js.c_str()));//
+			std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+			msg.encode_header();
+			c->write(msg);
+			
+			return;
+		}
+		
+		//Remove value raised from player's balance
+		me->setBalance(me->getBalance() - val);
+		me->addAmountBet(val);
+		raiseField->set_placeholder_text("Enter Amount to Bet");
 		
 		//Update balance
 		std::stringstream ss;
 		ss << "Balance: $" << me->getBalance();
 		balance->set_text(ss.str());
 		ss.str("");
-	
-		//Needs to update pot value and update the label for the pot value
+		
+		me->setPot(me->getPot() + val);
+		
+		//Needs to update pot value and then update the label for the pot value
 		ss << "Pot Value: $" << me->getPot();
 		pot->set_text(ss.str());
 		ss.str("");
 		
-		chat_message msg;
-		nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",val},{"pot",me->getPot()}};//
+		//Construct client message to server
+		int action = RAISE;
+		
+		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
 		nlohmann::json j_object_value(object_value);
-	
+		
+		chat_message msg;
 		ss << j_object_value;
 		std::string js = ss.str();
-	
+		
 		msg.body_length(std::strlen(js.c_str()));//
 		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
 		msg.encode_header();
 		c->write(msg);
-		
-		return;
 	}
-	
-	//Remove value raised from player's balance
-	me->setBalance(me->getBalance() - val);
-	me->addAmountBet(val);
-	raiseField->set_placeholder_text("Enter Amount to Bet");
-	
-	//Update balance
-	std::stringstream ss;
-	ss << "Balance: $" << me->getBalance();
-	balance->set_text(ss.str());
-	ss.str("");
-	
-	me->setPot(me->getPot() + val);
-	
-	//Needs to update pot value and then update the label for the pot value
-	ss << "Pot Value: $" << me->getPot();
-	pot->set_text(ss.str());
-	ss.str("");
-	
-	//Construct client message to server
-	int action = RAISE;
-	
-	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",val},{"pot",me->getPot()}};//
-	nlohmann::json j_object_value(object_value);
-	
-	chat_message msg;
-	ss << j_object_value;
-	std::string js = ss.str();
-	
-	msg.body_length(std::strlen(js.c_str()));//
-	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-	msg.encode_header();
-	c->write(msg);
 	
 	return;
 }
 
 void GameWindow::on_button_call_clicked()//
 {
-	//Get value needed to bet
-	int val = me->getMinBetNeeded() - me->getAmountBet();
-	
-	if(val > me->getBalance())
+	if((me->turn == me->getTurnID()) && (me->round != 2))
 	{
-		//set status to all in
-		val = me->getBalance();
-		int action = ALLIN;
+		//Get value needed to bet
+		int val = me->getMinBetNeeded() - me->getAmountBet();
 		
-		me->setBalance(me->getBalance() - val);
-		me->addAmountBet(val);
+		if(val > me->getBalance())
+		{
+			//set status to all in
+			val = me->getBalance();
+			int action = ALLIN;
+			
+			me->setBalance(me->getBalance() - val);
+			me->addAmountBet(val);
+			
+			me->setPot(me->getPot() + val);
+			
+			//Update balance
+			std::stringstream ss;
+			ss << "Balance: $" << me->getBalance();
+			balance->set_text(ss.str());
+			ss.str("");
 		
-		me->setPot(me->getPot() + val);
+			//Needs to update pot value and update the label for the pot value
+			ss << "Pot Value: $" << me->getPot();
+			pot->set_text(ss.str());
+			ss.str("");
 		
-		//Update balance
-		std::stringstream ss;
-		ss << "Balance: $" << me->getBalance();
-		balance->set_text(ss.str());
-		ss.str("");
-	
-		//Needs to update pot value and update the label for the pot value
-		ss << "Pot Value: $" << me->getPot();
-		pot->set_text(ss.str());
-		ss.str("");
-	
-		nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",val},{"pot",me->getPot()}};//
+			nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
+			nlohmann::json j_object_value(object_value);
+			
+			chat_message msg;
+			ss << j_object_value;
+			std::string js = ss.str();
+		
+			msg.body_length(std::strlen(js.c_str()));//
+			std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+			msg.encode_header();
+			c->write(msg);
+			
+			return;
+		}
+		
+		if(me->getAmountBet() < me->getMinBetNeeded())
+		{
+			//Remove value raised from player's balance
+			me->setBalance(me->getBalance() - val);
+			me->setPot(me->getPot() + val);
+			
+			//Update balance
+			std::stringstream ss;
+			ss << "Balance: $" << me->getBalance();
+			balance->set_text(ss.str());
+			ss.str("");
+			
+			//Needs to update pot value and update the label for the pot value
+			ss << "Pot Value: $" << me->getPot();
+			pot->set_text(ss.str());
+			ss.str("");
+			
+			//Construct client message to server
+			int action = CALL;
+			
+			nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
+			nlohmann::json j_object_value(object_value);
+			
+			chat_message msg;
+			ss << j_object_value;
+			std::string js = ss.str();
+			
+			msg.body_length(std::strlen(js.c_str()));//
+			std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+			msg.encode_header();
+			c->write(msg);
+		}
+	}
+	return;
+}
+
+void GameWindow::on_button_check_clicked()//
+{
+	if(me->turn == me->getTurnID())
+	{
+		if(me->getAmountBet() < me->getMinBetNeeded())
+		{
+			return;
+		}
+		
+		int action = CHECK;
+		
+		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action}};//
 		nlohmann::json j_object_value(object_value);
 		
+		std::stringstream ss;
 		chat_message msg;
 		ss << j_object_value;
 		std::string js = ss.str();
-	
+		
 		msg.body_length(std::strlen(js.c_str()));//
 		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
 		msg.encode_header();
 		c->write(msg);
-		
-		return;
 	}
 	
-	if(me->getAmountBet() < me->getMinBetNeeded())
+	return;
+}
+
+void GameWindow::on_button_fold_clicked()//
+{
+	if(me->turn == me->getTurnID())
 	{
+		for(int i = 0; i < HAND_SIZE; i++)
+		{
+			//update button image to back of card
+			//disable button inputs
+		}
+		
+		int action = FOLD;
+		
+		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",0},{"pot",me->getPot()}};//
+		nlohmann::json j_object_value(object_value);
+		
+		std::stringstream ss;
+		chat_message msg;
+		ss << j_object_value;
+		std::string js = ss.str();
+		
+		msg.body_length(std::strlen(js.c_str()));//
+		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+		msg.encode_header();
+		c->write(msg);
+	}
+	
+	return;
+}
+
+void GameWindow::on_button_buy_in_clicked()//
+{
+	if((me->turn == me->getTurnID()) && (me->round == 0))
+	{
+		int val = 10; //buy in amount that I decided on, can change if you want it to
+		if(val > me->getBalance())
+		{
+			val = me->getBalance();
+			int action = ALLIN;
+			
+			me->setBalance(me->getBalance() - val);
+			me->addAmountBet(val);
+			me->setPot(me->getPot() + val);
+			
+			//Update balance
+			std::stringstream ss;
+			ss << "Balance: $" << me->getBalance();
+			balance->set_text(ss.str());
+			ss.str("");
+		
+			//Needs to update pot value and update the label for the pot value
+			ss << "Pot Value: $" << me->getPot();
+			pot->set_text(ss.str());
+			ss.str("");
+		
+			nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
+			nlohmann::json j_object_value(object_value);
+			
+			chat_message msg;
+			ss << j_object_value;
+			std::string js = ss.str();
+		
+			msg.body_length(std::strlen(js.c_str()));//
+			std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+			msg.encode_header();
+			c->write(msg);
+			
+			return;
+		}
+		
 		//Remove value raised from player's balance
 		me->setBalance(me->getBalance() - val);
 		me->setPot(me->getPot() + val);
@@ -264,12 +403,11 @@ void GameWindow::on_button_call_clicked()//
 		pot->set_text(ss.str());
 		ss.str("");
 		
-		//Construct client message to server
-		int action = CALL;
+		int action = BUYIN;
 		
-		nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",val},{"pot",me->getPot()}};//
+		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
 		nlohmann::json j_object_value(object_value);
-		
+			
 		chat_message msg;
 		ss << j_object_value;
 		std::string js = ss.str();
@@ -279,150 +417,32 @@ void GameWindow::on_button_call_clicked()//
 		msg.encode_header();
 		c->write(msg);
 	}
-	
-	return;
-}
-
-void GameWindow::on_button_check_clicked()//
-{
-	if(me->getAmountBet() < me->getMinBetNeeded())
-	{
-		return;
-	}
-	
-	int action = CHECK;
-	
-	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action}};//
-	nlohmann::json j_object_value(object_value);
-	
-	std::stringstream ss;
-	chat_message msg;
-	ss << j_object_value;
-	std::string js = ss.str();
-	
-	msg.body_length(std::strlen(js.c_str()));//
-	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-	msg.encode_header();
-	c->write(msg);
-	
-	return;
-}
-
-void GameWindow::on_button_fold_clicked()//
-{
-	for(int i = 0; i < HAND_SIZE; i++)
-	{
-		//update button image to back of card
-		//disable button inputs
-	}
-	
-	int action = FOLD;
-	
-	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",0},{"pot",me->getPot()}};//
-	nlohmann::json j_object_value(object_value);
-	
-	std::stringstream ss;
-	chat_message msg;
-	ss << j_object_value;
-	std::string js = ss.str();
-	
-	msg.body_length(std::strlen(js.c_str()));//
-	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-	msg.encode_header();
-	c->write(msg);
-	
-	return;
-}
-
-void GameWindow::on_button_buy_in_clicked()//
-{
-	int val = 10; //buy in amount that I decided on, can change if you want it to
-	if(val > me->getBalance())
-	{
-		val = me->getBalance();
-		int action = ALLIN;
-		
-		me->setBalance(me->getBalance() - val);
-		me->addAmountBet(val);
-		me->setPot(me->getPot() + val);
-		
-		//Update balance
-		std::stringstream ss;
-		ss << "Balance: $" << me->getBalance();
-		balance->set_text(ss.str());
-		ss.str("");
-	
-		//Needs to update pot value and update the label for the pot value
-		ss << "Pot Value: $" << me->getPot();
-		pot->set_text(ss.str());
-		ss.str("");
-	
-		nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",val},{"pot",me->getPot()}};//
-		nlohmann::json j_object_value(object_value);
-		
-		chat_message msg;
-		ss << j_object_value;
-		std::string js = ss.str();
-	
-		msg.body_length(std::strlen(js.c_str()));//
-		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-		msg.encode_header();
-		c->write(msg);
-		
-		return;
-	}
-	
-	//Remove value raised from player's balance
-	me->setBalance(me->getBalance() - val);
-	me->setPot(me->getPot() + val);
-	
-	//Update balance
-	std::stringstream ss;
-	ss << "Balance: $" << me->getBalance();
-	balance->set_text(ss.str());
-	ss.str("");
-	
-	//Needs to update pot value and update the label for the pot value
-	ss << "Pot Value: $" << me->getPot();
-	pot->set_text(ss.str());
-	ss.str("");
-	
-	int action = BUYIN;
-	
-	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",val},{"pot",me->getPot()}};//
-	nlohmann::json j_object_value(object_value);
-		
-	chat_message msg;
-	ss << j_object_value;
-	std::string js = ss.str();
-	
-	msg.body_length(std::strlen(js.c_str()));//
-	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-	msg.encode_header();
-	c->write(msg);
 	
 	return;
 }
 
 void GameWindow::on_button_trade_clicked()
 {
-	int action = TRADE;
-	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"cards",idx}};//
-	nlohmann::json j_object_value(object_value);
-	
-	std::stringstream ss;
-	chat_message msg;
-	ss << j_object_value;
-	std::string js = ss.str();
-	
-	msg.body_length(std::strlen(js.c_str()));//
-	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-	msg.encode_header();
-	c->write(msg);
-	
-	for(int i = 0; i < HAND_SIZE; i++)
+	if((me->turn == me->getTurnID()) && (me->round == 2))
 	{
-		idx[i] = 0;
+		int action = TRADE;
+		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"cards",idx}};//
+		nlohmann::json j_object_value(object_value);
+		
+		std::stringstream ss;
+		chat_message msg;
+		ss << j_object_value;
+		std::string js = ss.str();
+		
+		msg.body_length(std::strlen(js.c_str()));//
+		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+		msg.encode_header();
+		c->write(msg);
+		
+		for(int i = 0; i < HAND_SIZE; i++)
+		{
+			idx[i] = 0;
+		}
 	}
 	
 	return;
@@ -430,57 +450,63 @@ void GameWindow::on_button_trade_clicked()
 
 void GameWindow::on_button_all_in_clicked()
 {
-	//Remove value raised from player's balance
-	int val = me->getBalance();
-	me->setBalance(0);
-	me->setPot(me->getPot() + val);
-	
-	//Update balance
-	std::stringstream ss;
-	ss << "Balance: $" << me->getBalance();
-	balance->set_text(ss.str());
-	ss.str("");
-	
-	//Update pot
-	ss << "Pot Value: $" << me->getPot();
-	pot->set_text(ss.str());
-	ss.str("");
-	
-	int action = ALLIN;
-	
-	nlohmann::json::object_t object_value = {{"turn",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"amount",val},{"pot",me->getPot()}};//
-	nlohmann::json j_object_value(object_value);
+	if((me->turn == me->getTurnID()) && (me->round != 2))
+	{
+		//Remove value raised from player's balance
+		int val = me->getBalance();
+		me->setBalance(0);
+		me->setPot(me->getPot() + val);
 		
-	chat_message msg;
-	ss << j_object_value;
-	std::string js = ss.str();
-	
-	msg.body_length(std::strlen(js.c_str()));//
-	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-	msg.encode_header();
-	c->write(msg);
+		//Update balance
+		std::stringstream ss;
+		ss << "Balance: $" << me->getBalance();
+		balance->set_text(ss.str());
+		ss.str("");
+		
+		//Update pot
+		ss << "Pot Value: $" << me->getPot();
+		pot->set_text(ss.str());
+		ss.str("");
+		
+		int action = ALLIN;
+		
+		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
+		nlohmann::json j_object_value(object_value);
+			
+		chat_message msg;
+		ss << j_object_value;
+		std::string js = ss.str();
+		
+		msg.body_length(std::strlen(js.c_str()));//
+		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+		msg.encode_header();
+		c->write(msg);
+	}
 	
 	return;
 }
 
 void GameWindow::on_button_quit_clicked()
 {
-	int action = DEL_PLAYER;
-	
-	nlohmann::json::object_t object_value = {{"uid",me->getUID()},{"action",action}};//
-	nlohmann::json j_object_value(object_value);
-	
-	std::stringstream ss;
-	chat_message msg;
-	ss << j_object_value;
-	std::string js = ss.str();
-	
-	msg.body_length(std::strlen(js.c_str()));//
-	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
-	msg.encode_header();
-	c->write(msg);
-	
-	hide();
+	if(me->round == 4)
+	{
+		int action = DEL_PLAYER;
+		
+		nlohmann::json::object_t object_value = {{"uid",me->getUID()},{"action",action}};//
+		nlohmann::json j_object_value(object_value);
+		
+		std::stringstream ss;
+		chat_message msg;
+		ss << j_object_value;
+		std::string js = ss.str();
+		
+		msg.body_length(std::strlen(js.c_str()));//
+		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
+		msg.encode_header();
+		c->write(msg);
+		
+		hide();
+	}
 }
 
 void GameWindow::addPlayer(Player* player)
@@ -620,5 +646,59 @@ void GameWindow::on_button_card_4_clicked()
 void GameWindow::on_button_card_5_clicked()
 {
 	idx[4] = !idx[4];
+	return;
+}
+
+void GameWindow::updatePot()
+{
+	std::stringstream ss;
+	
+	ss << "Pot Value: $" << me->getPot();
+	pot->set_text(ss.str());
+	ss.str("");
+	
+	return;
+}
+
+void GameWindow::updateRound()
+{
+	std::stringstream ss;
+	
+	ss << "Round: " << me->round;
+	roundL->set_text(ss.str());
+	ss.str("");
+	
+	return;
+}
+
+void GameWindow::updateTurn()
+{
+	std::stringstream ss;
+	
+	if(me->turn == me->getTurnID())
+	{
+		ss << "Turn: *" << me->turn;
+		turnL->set_text(ss.str());
+		ss.str("");
+	}
+	else
+	{
+		ss << "Turn: " << me->turn;
+		turnL->set_text(ss.str());
+		ss.str("");
+	}
+	
+	return;
+}
+
+void GameWindow::updateSpecList(std::string list)
+{
+	std::stringstream ss;
+	ss << "Spectators:\n" << list;
+	
+	SpectatorList->set_text(ss.str());
+	
+	ss.str("");
+	
 	return;
 }
