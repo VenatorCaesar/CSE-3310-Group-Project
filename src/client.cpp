@@ -6,6 +6,7 @@
 #include <gtkmm.h>
 #include <glibmm/iochannel.h>
 #include <sstream>
+#include <X11/Xlib.h>
 #include "InfoWindow.hpp"
 #include "GameWindow.hpp"
 #include "asio.hpp"
@@ -26,12 +27,14 @@ typedef std::deque<chat_message> chat_message_queue;
 
 GameWindow* myGameWindow;
 
+// Edited the constructor to set the Player reference
 chat_client::chat_client(asio::io_context& io_context,const tcp::resolver::results_type& endpoints,Player* m): io_context_(io_context),socket_(io_context)
 {
 	me = m;
 	do_connect(endpoints);
 }
 
+//given write function
 void chat_client::write(const chat_message& msg)
 {
 	asio::post(io_context_,[this, msg]()
@@ -45,11 +48,13 @@ void chat_client::write(const chat_message& msg)
 	});
 }
 
+//given close function
 void chat_client::close()
 {
     asio::post(io_context_, [this]() { socket_.close(); });
 }
 
+//give connect function
 void chat_client::do_connect(const tcp::resolver::results_type& endpoints)
 {
     asio::async_connect(socket_, endpoints,[this](std::error_code ec, tcp::endpoint) // CSE3310 This is where the connection is established with the server
@@ -61,6 +66,7 @@ void chat_client::do_connect(const tcp::resolver::results_type& endpoints)
 	});
 }
 
+//given read header function
 void chat_client::do_read_header()
 {
 	asio::async_read(socket_,asio::buffer(read_msg_.data(), chat_message::header_length),
@@ -77,26 +83,34 @@ void chat_client::do_read_header()
 	});
 }
 
+// When the server sends a message to each client in the chat room, this is where the client receives the message
 void chat_client::do_read_body()
 {
 	asio::async_read(socket_,asio::buffer(read_msg_.body(), read_msg_.body_length()),[this](std::error_code ec, std::size_t /*length*/) // CSE3310 This is where the message is received from the server
 	{
 		if (!ec)
 		{
+			// Convert chat_message to string
 			std::stringstream ss;
 			ss.write(read_msg_.body(), read_msg_.body_length());//
 			
+			// Parse string into json object
 			nlohmann::json jstring;
 			ss >> jstring;
 			ss.str(""); // clears the string stream
-							
+			
+			// Grab the action that the server is telling us to do
 			int action = jstring["action"];
 			
 			switch(action)
 			{
+				// If the server is assigning a UID
 				case UID:
 				{
+					// Grab name of the Player
 					std::string name = jstring["name"];
+					
+					// If the Player's name and age matches, assign the UID to me
 					if((name.compare(me->getName()) == 0) && (jstring["age"] == me->getAge()) && (me->getUID().compare("") == 0))
 					{
 						me->setUID(jstring["uid"]);
@@ -104,26 +118,28 @@ void chat_client::do_read_body()
 					
 					break;
 				}
+				// If the server is sending hands to players
 				case HANDS:
 				{
-					std::string uID = jstring["uid"];
-					if(uID.compare(me->getUID()) == 0)
+					gdk_threads_enter(); // locks the thread
+					std::string uID = jstring["uid"]; // Grab the UID for the Player's hand
+					if(uID.compare(me->getUID()) == 0) // if the UID matches our UID
 					{
-						//std::cout << "ME\n";
+						// Set our turn ID and set the game round
 						me->setTurnID(jstring["turnID"]);
 						me->round = jstring["round"];
 						
+						// Initialize a temp pointer to store our hand in
 						char new_hand[HAND_SIZE];
+						std::string tempS = jstring["hand"]; //Grab the hand in string format
 						
 						for(int i = 0; i < HAND_SIZE; i++)
 						{
-							std::string tempS = jstring["hand"];
-							//printf("%x\n",tempS.at(i));
-							new_hand[i] = (char) tempS.at(i);
+							new_hand[i] = (char) tempS.at(i); // Grab the character at index i and set it to the hand
 						}
 						
-						me->setHand(new_hand);
-						myGameWindow->addPlayer(me);
+						me->setHand(new_hand); // Set the player's hand to what we received
+						myGameWindow->addPlayer(me); // Add the player to the window
 						// update gui for turn notifier
 						me->turn = jstring["turn"];
 						me->round = jstring["round"];
@@ -131,36 +147,31 @@ void chat_client::do_read_body()
 						myGameWindow->updateTurn();
 						myGameWindow->updateRound();
 					}
-					else
+					else // If UID doesn't match ours
 					{
-						//std::cout << "NOT ME\n";
-						std::string name = jstring["name"];
-						int age = jstring["age"];
-						Player* p = new Player(name,age);
+						std::string name = jstring["name"]; // Grab the Player's name
+						int age = jstring["age"]; // Grab their age
+						Player* p = new Player(name,age); // Create a new Player with the name and age received
 						
-						char new_hand[HAND_SIZE];
-						
-						for(int i = 0; i < HAND_SIZE; i++)
-						{
-							std::string tempS = jstring["hand"];
-							//printf("%x\n",tempS.at(i));
-							new_hand[i] = (char) tempS.at(i);
-						}
-						
-						p->setHand(new_hand);
+						// Add new player to game window
 						myGameWindow->addPlayer(p);
 						
+						// Add player to a vector of players, that way we can delete the memory later
 						listOfOpponents.push_back(p);
 						//update gui for turn notifier
 						myGameWindow->updateTurn();
 						myGameWindow->updateRound();
 					}
 					
+					gdk_threads_leave(); // unlocks the thread
+					
 					break;
 				}
+				// If the game is over
 				case GAME_OVER:
 				{
-					int tie = jstring["tie"];
+					gdk_threads_enter(); // locks the thread
+					int tie = jstring["tie"]; // Grab a c-style bool to check for tie
 					if(tie)
 					{
 						std::stringstream ss;
@@ -199,45 +210,56 @@ void chat_client::do_read_body()
 						app->run(*goWindow);
 					}
 					
-					break;
-				}
-				case NEW_TURN:
-				{
-					me->turn = jstring["turn"];
-					me->round = jstring["round"];
-					int new_pot = jstring["pot"];
-					int new_min_bet = jstring["minBet"];
-					me->setPot(new_pot);
-					me->setMinBetNeeded(new_min_bet);
-					myGameWindow->updateTurn();
-					myGameWindow->updateRound();
-					myGameWindow->updatePot();
+					gdk_threads_leave(); // unlocks thread
 					
 					break;
 				}
+				// If new turn is to happen
+				case NEW_TURN:
+				{
+					gdk_threads_enter(); // locks thread
+					me->turn = jstring["turn"]; // grab turn counter
+					me->round = jstring["round"]; // grab round counter
+					int new_pot = jstring["pot"]; // grab pot counter
+					int new_min_bet = jstring["minBet"]; // grab the minimum bet required
+					me->setPot(new_pot); // update the pot counter
+					me->setMinBetNeeded(new_min_bet); // update the minimum bet required
+					myGameWindow->updateTurn(); // update turn for GUI
+					myGameWindow->updateRound(); // update round for GUI
+					myGameWindow->updatePot(); // update pot for gui
+					gdk_threads_leave(); // unlocks thread
+					
+					break;
+				}
+				// If a player asked for a new hand and the server accepted
 				case NEW_HAND:
 				{
-					std::string uID = jstring["uid"];
-					if(uID.compare(me->getUID()) == 0)
+					gdk_threads_enter(); // locks the thread
+					std::string uID = jstring["uid"]; // grabs the uid
+					if(uID.compare(me->getUID()) == 0) // if it is our uid
 					{
-						char new_hand[HAND_SIZE];
+						char new_hand[HAND_SIZE]; // temp hand to store it in
+						
+						std::string tempS = jstring["hand"];
 						
 						for(int i = 0; i < HAND_SIZE; i++)
 						{
-							std::string tempS = jstring["hand"];
-							//printf("%x\n",tempS.at(i));
-							new_hand[i] = (char) tempS.at(i);
+							new_hand[i] = (char) tempS.at(i); // set card at i to whichever char it is at index i
 						}
 						
-						me->setHand(new_hand);
-						myGameWindow->changeCards(me);
+						me->setHand(new_hand); // set the new hand
+						myGameWindow->changeCards(me); // update the window
 					}
+					gdk_threads_leave(); // unlocks the thread
 					
 					break;
 				}
+				// If a spectator joins // Still a bit finicky
 				case SPEC:
 				{
-					std::stringstream ss;
+					gdk_threads_enter(); // locks the thread
+					// Grabs each name and adds it the string stream
+					std::stringstream ss; 
 					int i = 0;
 					ss << "name" << i;
 					
@@ -253,8 +275,9 @@ void chat_client::do_read_body()
 						ss << "name" << i;
 					}
 					
-					myGameWindow->updateSpecList(l.str());
-					l.str("");
+					myGameWindow->updateSpecList(l.str()); // updates the label to have the spectators' names
+					l.str(""); // clears the stream
+					gdk_threads_leave(); // unlocks the thread
 				}
 			}
 			
@@ -267,6 +290,7 @@ void chat_client::do_read_body()
 	});
 }
 
+// given do_write function
 void chat_client::do_write()
 {
 	asio::async_write(socket_,asio::buffer(write_msgs_.front().data(),write_msgs_.front().length()),[this](std::error_code ec, std::size_t /*length*/)
@@ -286,8 +310,10 @@ void chat_client::do_write()
 	});
 }
 
+// Builds the infowindow and will return the name and age entered by the player
 nlohmann::json* createInfoWindow(int argc, char** argv)
 {
+	// Create an application to run the InfoWindow
 	auto app = Gtk::Application::create(argc,argv,"");
 	
 	int* age = new int;
@@ -323,6 +349,8 @@ int main(int argc, char** argv)
 			return 1;
 		}
 		
+		XInitThreads();
+		
 		//Message to be sent to the server if of age
 		nlohmann::json* creationJSON = createInfoWindow(argc-argc,argv); //argc-argc to have to GUI ignore command line arguments
 		nlohmann::json myData = *creationJSON;
@@ -339,6 +367,9 @@ int main(int argc, char** argv)
 		chat_client* c = new chat_client(io_context, endpoints,me);
 		assert(c);
 		std::thread t([&io_context](){io_context.run();});
+		
+		//Create the new game window
+		myGameWindow = new GameWindow(me,c);
 		
 		//send new player info to the server
 		std::stringstream ss;
@@ -359,9 +390,6 @@ int main(int argc, char** argv)
 		//Get rid of old json variables
 		delete creationJSON;
 		myData = NULL;
-		
-		//Create the new game window
-		myGameWindow = new GameWindow(me,c);
 		
 		//Run the game window
 		app->run(*myGameWindow);

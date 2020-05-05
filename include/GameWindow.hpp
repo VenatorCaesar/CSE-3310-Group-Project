@@ -69,7 +69,6 @@ class GameWindow : public Gtk::Window
 		std::vector<Gtk::Button*> playerCards;
 		Player* me;//
 		Gtk::Image* cardImages[4][13];//
-		Gtk::Image* backOfCard;//
 		chat_client* c;
 		int idx[5];
 };

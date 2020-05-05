@@ -110,8 +110,6 @@ GameWindow::GameWindow(Player* p,chat_client* C)
 		}
 	}
 	
-	backOfCard = new Gtk::Image("JPEG/back_of_card.jpg");
-	
 	MainHBox->show_all();
 }
 
@@ -125,8 +123,6 @@ GameWindow::~GameWindow()
 		}
 	}
 	
-	delete backOfCard;
-	
 	delete MainHBox;
 }
 
@@ -137,6 +133,14 @@ void GameWindow::on_button_raise_clicked()//
 		//Grab text
 		std::string entered = raiseField->get_text();
 		//Convert to int
+		for(int i = 0; i < entered.length(); i++)
+		{
+			if(isdigit(entered[i]) == false)
+			{
+				return;
+			}
+		}
+		
 		int val = std::stoi(entered);
 		
 		//If entered exceeds funds, go all in
@@ -260,6 +264,7 @@ void GameWindow::on_button_call_clicked()//
 			//Remove value raised from player's balance
 			me->setBalance(me->getBalance() - val);
 			me->setPot(me->getPot() + val);
+			me->addAmountBet(val);
 			
 			//Update balance
 			std::stringstream ss;
@@ -297,6 +302,7 @@ void GameWindow::on_button_check_clicked()//
 	{
 		if(me->getAmountBet() < me->getMinBetNeeded())
 		{
+			std::cout << me->getAmountBet() << "\n" << me->getMinBetNeeded() << std::endl;
 			return;
 		}
 		
@@ -390,6 +396,7 @@ void GameWindow::on_button_buy_in_clicked()//
 		
 		//Remove value raised from player's balance
 		me->setBalance(me->getBalance() - val);
+		me->addAmountBet(val);
 		me->setPot(me->getPot() + val);
 		
 		//Update balance
@@ -512,8 +519,8 @@ void GameWindow::on_button_quit_clicked()
 void GameWindow::addPlayer(Player* player)
 {
 	// Create a new box for the new player
-	Gtk::Box* newPlayerBox = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_VERTICAL,0));
-	PlayersVBox->add(*newPlayerBox);
+	Gtk::Box* newPlayerBox = new Gtk::Box(Gtk::ORIENTATION_VERTICAL,0);
+	PlayersVBox->add(*newPlayerBox); // THIS IS CAUSING SEGFAULT FOR SECOND PLAYER
 	PlayerBoxes.push_back(newPlayerBox);
 	
 	//Create a labek for the player name
@@ -579,6 +586,7 @@ void GameWindow::addPlayer(Player* player)
 		{
 			Gtk::Button* card = Gtk::manage(new Gtk::Button());
 			card->set_image_position(Gtk::POS_LEFT);
+			Gtk::Image* backOfCard = Gtk::manage(new Gtk::Image("JPEG/back_of_card.jpg"));
 			card->set_image(*backOfCard);
 			playerCardsHBox->add(*card);
 		}

@@ -15,28 +15,60 @@ InfoWindow::InfoWindow(std::string* name, int* age)
 	MainHBox = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_HORIZONTAL,0));
 	add(*MainHBox); //adds it to the window
 	
-	//Adds the exit button
-	exitButton = Gtk::manage(new Gtk::Button("Exit"));
-	MainHBox->add(*exitButton);
-	exitButton->signal_clicked().connect(sigc::mem_fun(*this, &InfoWindow::on_button_exit_clicked));
-	
 	//Adds the VBox for the entry fields
 	fieldsVBox = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_VERTICAL,0));
 	MainHBox->add(*fieldsVBox);
 	
 	//Adds the entry fields
+    Gtk::Label *MyLabel= Gtk::manage(new Gtk::Label("\nWelcome to Poker++\n"));
+    
+    fieldsVBox->add(*MyLabel);
+    
 	nameField = Gtk::manage(new Gtk::Entry());
 	nameField->set_placeholder_text("Enter Name");
 	fieldsVBox->add(*nameField);
 	ageField = Gtk::manage(new Gtk::Entry());
 	ageField->set_placeholder_text("Enter Age");
 	fieldsVBox->add(*ageField);
+
+	
+
+
+	//professor's code
+	/*
+	Gtk::Image* cardImage = new Gtk::Image("JPEG/card.jpeg");
+	card->set_image(*cardImage);
+	playerCardsHBox->add(*card);
+	*/
+
+
+
+	//original code
+	/*
+    Gtk::Image *MyImage = Gtk::manage(new Gtk::Image{"JPEG/card.jpeg"});
+    fieldsVBox->add(*MyImage);
+	*/
+
+
+	Gtk::Image* logoImage = new Gtk::Image("JPEG/card.jpeg");
+	fieldsVBox -> add(*logoImage);
+	
+
+
+
+    //Adds the exit button
+    exitButton = Gtk::manage(new Gtk::Button("Exit"));
+    fieldsVBox->add(*exitButton);
+    exitButton->signal_clicked().connect(sigc::mem_fun(*this, &InfoWindow::on_button_exit_clicked));
 	
 	//Adds the join button
 	join_inButton = Gtk::manage(new Gtk::Button("Join In"));
-	MainHBox->add(*join_inButton);
+	fieldsVBox->add(*join_inButton);
 	join_inButton->signal_clicked().connect(sigc::mem_fun(*this, &InfoWindow::on_button_join_in_clicked));
-	
+    nameField->signal_activate().connect(sigc::mem_fun(*this, &InfoWindow::on_button_join_in_clicked));
+    ageField->signal_activate().connect(sigc::mem_fun(*this, &InfoWindow::on_button_join_in_clicked));
+    
+
 	MainHBox->show_all();
 }
 

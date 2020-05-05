@@ -391,7 +391,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 									unsigned int turnID = jstring["turnID"];
 									std::string uid = jstring["uid"];
 									
-									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && ((round == 1) || (round == 3)))
+									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0))
 									{
 										new_turn();
 									}
@@ -426,9 +426,7 @@ class chat_session : public chat_participant, public std::enable_shared_from_thi
 								}
 								case BUYIN:
 								{
-									std::cout << "Fine1\n";
 									unsigned int turnID = jstring["turnID"];
-									std::cout << "Fine2\n";
 									std::string uid = jstring["uid"];
 									
 									if((turnID == turn) && (uid.compare(players.at(turn-1)->getUID()) == 0) && (round == 0))
