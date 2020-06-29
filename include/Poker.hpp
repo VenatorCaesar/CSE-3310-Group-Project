@@ -330,39 +330,39 @@ int checkRoyalFlush(char* hand)
 
 int scoreHand(char* hand)
 {
-	if(checkRoyalFlush(hand))
+	if(checkRoyalFlush(hand) != 0)
 	{
 		return checkRoyalFlush(hand);
 	}
-	else if(checkStraightFlush(hand))
+	else if(checkStraightFlush(hand) != 0)
 	{
 		return checkStraightFlush(hand);
 	}
-	else if(checkFourOfAKind(hand))
+	else if(checkFourOfAKind(hand) != 0)
 	{
 		return checkFourOfAKind(hand);
 	}
-	else if(checkFullHouse(hand))
+	else if(checkFullHouse(hand) != 0)
 	{
 		return checkFullHouse(hand);
 	}
-	else if(checkFlush(hand))
+	else if(checkFlush(hand) != 0)
 	{
 		return checkFlush(hand);
 	}
-	else if(checkStraight(hand))
+	else if(checkStraight(hand) != 0)
 	{
 		return checkStraight(hand);
 	}
-	else if(checkThreeOfAKind(hand))
+	else if(checkThreeOfAKind(hand) != 0)
 	{
 		return checkThreeOfAKind(hand);
 	}
-	else if(checkTwoPair(hand))
+	else if(checkTwoPair(hand) != 0)
 	{
 		return checkTwoPair(hand);
 	}
-	else if(checkPair(hand))
+	else if(checkPair(hand) != 0)
 	{
 		return checkPair(hand);
 	}

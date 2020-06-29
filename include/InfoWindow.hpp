@@ -2,9 +2,11 @@
 // 1001588696
 
 #include <gtkmm.h>
+#include <iostream>
 #include <vector>
 #include <string>
 #include <sstream>
+#include <stdexcept>// for error handling
 
 class InfoWindow : public Gtk::Window
 {
@@ -21,5 +23,6 @@ class InfoWindow : public Gtk::Window
 		Gtk::Entry* ageField;
 		Gtk::Button* join_inButton;
 		std::string* Name;
+		Gtk::Image* logoImage;
 		int* Age;
 };

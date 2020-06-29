@@ -34,6 +34,9 @@ class Player
 		int getMinBetNeeded();
 		int round;
 		int turn;
+		int folded;
+		int all_in;
+		int spec;
 	
 	private:
 		std::string name;

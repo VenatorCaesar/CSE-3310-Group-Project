@@ -2,7 +2,7 @@
 #include "chat_client.hpp"
 #include "json.hpp"
 
-#define DEL_PLAYER 8
+#define CONT_PLAYER 8
 
 class GameoverWindow : public Gtk::Window
 {
