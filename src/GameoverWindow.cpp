@@ -8,10 +8,10 @@ GameoverWindow::GameoverWindow(int result, chat_client* C, Player* p)
 {
 	c = C;
 	me = p;
-	set_title("Poker++");
+	set_title("Poker++ Game Over Message");
 	set_default_size(125, 125);
 
-	std::string rLabel = " ";
+	std::string rLabel = "";
 	if(result == 0)
 	{
 		rLabel = "GAME OVER! You loss!\n";
@@ -44,7 +44,7 @@ GameoverWindow::GameoverWindow(int result, chat_client* C, Player* p)
 	MainBox->add(*quitButton);
 	quitButton->signal_clicked().connect(sigc::mem_fun(*this, &GameoverWindow::on_button_quit_clicked));
 	
-	show_all_children();
+	MainBox->show_all();
 }
 
 GameoverWindow::~GameoverWindow()
@@ -54,14 +54,9 @@ GameoverWindow::~GameoverWindow()
 
 void GameoverWindow::on_button_continue_clicked()
 {
-	hide();
-}
-
-void GameoverWindow::on_button_quit_clicked()
-{
-	int action = DEL_PLAYER;
+	int action = CONT_PLAYER;
 		
-	nlohmann::json::object_t object_value = {{"uid",me->getUID()},{"action",action}};//
+	nlohmann::json::object_t object_value = {{"uid",me->getUID()},{"action",action},{"name",me->getName()},{"age",me->getAge()}};//
 	nlohmann::json j_object_value(object_value);
 		
 	std::stringstream ss;
@@ -73,7 +68,12 @@ void GameoverWindow::on_button_quit_clicked()
 	std::memcpy(msg.body(),js.c_str(), msg.body_length());//
 	msg.encode_header();
 	c->write(msg);
-		
+	
 	hide();
-	abort();
+}
+
+void GameoverWindow::on_button_quit_clicked()
+{		
+	hide();
+	exit(0);
 }

@@ -87,6 +87,10 @@ GameWindow::GameWindow(Player* p,chat_client* C)
 	ButtonsVBox->add(*all_inButton);
 	all_inButton->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_all_in_clicked));
 	
+	continueButton = Gtk::manage(new Gtk::Button("Continue Playing"));
+	ButtonsVBox->add(*continueButton);
+	continueButton->signal_clicked().connect(sigc::mem_fun(*this, &GameWindow::on_button_continue_clicked));
+	
 	//Adds the list of spectators and quit button
 	SideVBox = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_VERTICAL,0));
 	MainHBox->add(*SideVBox);
@@ -133,15 +137,16 @@ void GameWindow::on_button_raise_clicked()//
 		//Grab text
 		std::string entered = raiseField->get_text();
 		//Convert to int
-		for(int i = 0; i < entered.length(); i++)
+		int val;
+		try
 		{
-			if(isdigit(entered[i]) == false)
-			{
-				return;
-			}
+			val = std::stoi(entered);
 		}
-		
-		int val = std::stoi(entered);
+		catch(const std::invalid_argument& ia)
+		{
+			std::cerr << "Enter an integer value please" << std::endl;
+			return;
+		}
 		
 		//If entered exceeds funds, go all in
 		if(val > me->getBalance())
@@ -300,14 +305,16 @@ void GameWindow::on_button_check_clicked()//
 {
 	if(me->turn == me->getTurnID())
 	{
+		// Check to see I meet the bet requirements
 		if(me->getAmountBet() < me->getMinBetNeeded())
 		{
 			std::cout << me->getAmountBet() << "\n" << me->getMinBetNeeded() << std::endl;
-			return;
+			return; // if i don't act like the user didn't press it
 		}
 		
-		int action = CHECK;
+		int action = CHECK; // set the action
 		
+		// put it into json format
 		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action}};//
 		nlohmann::json j_object_value(object_value);
 		
@@ -316,6 +323,7 @@ void GameWindow::on_button_check_clicked()//
 		ss << j_object_value;
 		std::string js = ss.str();
 		
+		// construct the message to the server
 		msg.body_length(std::strlen(js.c_str()));//
 		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
 		msg.encode_header();
@@ -329,14 +337,17 @@ void GameWindow::on_button_fold_clicked()//
 {
 	if(me->turn == me->getTurnID())
 	{
-		for(int i = 0; i < HAND_SIZE; i++)
+		for(auto card : playerCards)
 		{
-			//update button image to back of card
-			//disable button inputs
+			Gtk::Image* cardImage = Gtk::manage(new Gtk::Image("JPEG/back_of_card.jpg")); // Get the back of card image
+			
+			card->set_image(*cardImage); // set the button's image to back of card
 		}
+		me->folded = 1;
 		
 		int action = FOLD;
 		
+		// Begin constructing the message to the server
 		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",0},{"pot",me->getPot()}};//
 		nlohmann::json j_object_value(object_value);
 		
@@ -475,6 +486,8 @@ void GameWindow::on_button_all_in_clicked()
 		pot->set_text(ss.str());
 		ss.str("");
 		
+		me->all_in = 1;
+		
 		int action = ALLIN;
 		
 		nlohmann::json::object_t object_value = {{"turnID",me->getTurnID()},{"uid",me->getUID()},{"action",action},{"value",val},{"pot",me->getPot()}};//
@@ -493,16 +506,17 @@ void GameWindow::on_button_all_in_clicked()
 	return;
 }
 
-void GameWindow::on_button_quit_clicked()
+void GameWindow::on_button_continue_clicked()
 {
-	if(me->round == 4)
+	if(game_over)
 	{
-		int action = DEL_PLAYER;
-		
-		nlohmann::json::object_t object_value = {{"uid",me->getUID()},{"action",action}};//
-		nlohmann::json j_object_value(object_value);
-		
 		std::stringstream ss;
+		
+		int action = CONT_PLAYER;
+		
+		nlohmann::json::object_t object_value = {{"action",action},{"uid",me->getUID()},{"name",me->getName()},{"age",me->getAge()}};//
+		nlohmann::json j_object_value(object_value);
+			
 		chat_message msg;
 		ss << j_object_value;
 		std::string js = ss.str();
@@ -511,7 +525,13 @@ void GameWindow::on_button_quit_clicked()
 		std::memcpy(msg.body(),js.c_str(), msg.body_length());//
 		msg.encode_header();
 		c->write(msg);
-		
+	}
+}
+
+void GameWindow::on_button_quit_clicked()
+{
+	if((me->round == 4) || (game_over))
+	{		
 		hide();
 	}
 }
@@ -607,18 +627,22 @@ void GameWindow::removePlayers()
 	return;
 }
 
-void GameWindow::changeCards(Player* player)
+void GameWindow::changeCards()
 {
 	int i = 0;
 	for(auto card : playerCards)
 	{
 		Gtk::Image* cardImage;
 		
+		std::stringstream ss;
+		
 		int suit = me->getHand()[i] & 0xF0;
 		suit = suit >> 4;
 		int val = me->getHand()[i] & 0x0F;
 		
-		cardImage = cardImages[suit-1][val-1];
+		ss << "JPEG/rsz_" << suit << std::hex << std::noshowbase << val << ".jpg";
+		cardImage = Gtk::manage(new Gtk::Image(ss.str()));
+		ss.str("");
 		
 		card->set_image(*cardImage);
 		i++;
@@ -699,10 +723,21 @@ void GameWindow::updateTurn()
 	return;
 }
 
-void GameWindow::updateSpecList(std::string list)
+void GameWindow::updateBal()
 {
 	std::stringstream ss;
-	ss << "Spectators:\n" << list;
+	
+	ss << "Balance: " << me->getBalance();
+	balance->set_text(ss.str());
+	ss.str("");
+	
+	return;
+}
+
+void GameWindow::updateSpecList(std::string n)
+{
+	std::stringstream ss;
+	ss << SpectatorList->get_text() << n << "\n";
 	
 	SpectatorList->set_text(ss.str());
 	

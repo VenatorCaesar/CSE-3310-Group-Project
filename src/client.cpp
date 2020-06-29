@@ -113,7 +113,9 @@ void chat_client::do_read_body()
 					// If the Player's name and age matches, assign the UID to me
 					if((name.compare(me->getName()) == 0) && (jstring["age"] == me->getAge()) && (me->getUID().compare("") == 0))
 					{
+
 						me->setUID(jstring["uid"]);
+						me->spec = jstring["spec"];
 					}
 					
 					break;
@@ -122,6 +124,11 @@ void chat_client::do_read_body()
 				case HANDS:
 				{
 					gdk_threads_enter(); // locks the thread
+					while(myGameWindow == NULL) // Using thread racing magic to tell thread to wait for the window to exist
+					{}
+					myGameWindow->game_over = 0;
+					me->folded = 0;
+					me->all_in = 0;
 					std::string uID = jstring["uid"]; // Grab the UID for the Player's hand
 					if(uID.compare(me->getUID()) == 0) // if the UID matches our UID
 					{
@@ -154,6 +161,10 @@ void chat_client::do_read_body()
 						Player* p = new Player(name,age); // Create a new Player with the name and age received
 						
 						// Add new player to game window
+						if(myGameWindow == NULL)
+						{
+							std::cout << "NULL" << std::endl;
+						}
 						myGameWindow->addPlayer(p);
 						
 						// Add player to a vector of players, that way we can delete the memory later
@@ -170,45 +181,98 @@ void chat_client::do_read_body()
 				// If the game is over
 				case GAME_OVER:
 				{
+					myGameWindow->game_over = 1;
+					std::cout << "Game over\n";
 					gdk_threads_enter(); // locks the thread
 					int tie = jstring["tie"]; // Grab a c-style bool to check for tie
 					if(tie)
 					{
-						std::stringstream ss;
+						std::stringstream ss; // set up a stringstream to format strings to check for winner
 						int i;
-						int result = 0;
+						int result = 0; // if we were a part of the tie
+						int numWinners = 0;
 						
-						for(i = 1; i < 6; i++)
+						for(i = 1; i < 5; i++)
 						{
-							ss << "name" << i;
-							std::string t_uid = jstring[ss.str()];
-							if(t_uid.compare(me->getUID()) == 0)
+							ss << "name" << i; // create the key
+							std::string t_uid = jstring[ss.str()]; // grab the uid at that key
+							if(t_uid.compare(me->getUID()) == 0) // if it is our uid
 							{
-								result = 1;
+								result = 1; // we were a part of the tie
+							}
+							
+							// Check how many people won
+							if(t_uid.compare("") != 0)
+							{
+								numWinners++;
 							}
 						}
 						
+						me->setPot(0);
+						
+						if(result)
+						{
+							std::cout << "I won\n";
+							int val = jstring["pot"];
+							val /= numWinners;// How much money we earned is split between numWinners amount of people
+							me->setBalance(me->getBalance() + val);
+						}
+						
+						// Get ready to create a GameoverWindow
 						int noArgs = 0;
 						char** args;
 						auto app = Gtk::Application::create(noArgs,args,"");
-						GameoverWindow* goWindow = new GameoverWindow(result,this,me);
-						app->run(*goWindow);
+						GameoverWindow* goWindow = new GameoverWindow(result,this,me); // Create the window
+						app->run(*goWindow); // Run the window
+						
+						delete goWindow; // Delete the window after it is hidden
 					}
 					else
 					{
-						std::string t_uid = jstring["uid"];
+						std::string t_uid = jstring["uid"]; // if it wasn't a tie, then there is only one uid
 						int result = 0;
-						if(t_uid.compare(me->getUID()) == 0)
+						if(t_uid.compare(me->getUID()) == 0) // check to see if it is our uid
 						{
-							result = 1;
+							result = 1; // if so, set it to true
 						}
 						
+						me->setPot(0);
+						
+						if(result)
+						{
+							std::cout << "I won\n";
+							int val = jstring["pot"]; // How much money we earned
+							me->setBalance(me->getBalance() + val); // Add it to our balance
+							std::cout << "My Bal is: " << me->getBalance() << std::endl;
+						}
+						
+						// Get ready to create a GameoverWindow
 						int noArgs = 0;
 						char** args;
 						auto app = Gtk::Application::create(noArgs,args,"");
-						GameoverWindow* goWindow = new GameoverWindow(result,this,me);
-						app->run(*goWindow);
+						GameoverWindow* goWindow = new GameoverWindow(result,this,me); // Create the window
+						app->run(*goWindow); // Run the window
+						
+						delete goWindow; // Delete the window after it is hidden
 					}
+					
+					myGameWindow->removePlayers(); // Remove all players from gui
+					
+					me->round = jstring["round"]; // grab round counter
+					me->setMinBetNeeded(0); // update the minimum bet required
+					me->turn = -1;
+					myGameWindow->updateTurn(); // update turn for GUI
+					myGameWindow->updateRound(); // update round for GUI
+					myGameWindow->updatePot(); // update pot for gui
+					myGameWindow->updateBal(); // update bal for gui
+					
+					// Delete all the player pointers stored in listOfOpponents
+					for(auto p : listOfOpponents)
+					{
+						delete p;
+					}
+					
+					listOfOpponents.erase(listOfOpponents.begin(),listOfOpponents.end()); // Empty the vector
 					
 					gdk_threads_leave(); // unlocks thread
 					
@@ -248,35 +312,19 @@ void chat_client::do_read_body()
 						}
 						
 						me->setHand(new_hand); // set the new hand
-						myGameWindow->changeCards(me); // update the window
+						myGameWindow->changeCards(); // update the window
 					}
 					gdk_threads_leave(); // unlocks the thread
-					
 					break;
 				}
 				// If a spectator joins // Still a bit finicky
 				case SPEC:
 				{
 					gdk_threads_enter(); // locks the thread
-					// Grabs each name and adds it the string stream
-					std::stringstream ss; 
-					int i = 0;
-					ss << "name" << i;
+					// Grabs the name of the new spectator
+					std::string name = jstring["name"];
 					
-					std::stringstream l;
-					
-					while(jstring.contains(ss.str()))
-					{
-						std::string name = jstring[ss.str()];
-						
-						l << name << "\n";
-						i++;
-						ss.str("");
-						ss << "name" << i;
-					}
-					
-					myGameWindow->updateSpecList(l.str()); // updates the label to have the spectators' names
-					l.str(""); // clears the stream
+					myGameWindow->updateSpecList(name); // updates the label to have the spectator's names
 					gdk_threads_leave(); // unlocks the thread
 				}
 			}
@@ -311,7 +359,7 @@ void chat_client::do_write()
 }
 
 // Builds the infowindow and will return the name and age entered by the player
-nlohmann::json* createInfoWindow(int argc, char** argv)
+nlohmann::json* createInfoWindow(int argc, char** argv)//
 {
 	// Create an application to run the InfoWindow
 	auto app = Gtk::Application::create(argc,argv,"");
@@ -330,7 +378,7 @@ nlohmann::json* createInfoWindow(int argc, char** argv)
 	if(myData["age"] < 21)
 	{
 		std::cerr << "You are not old enough to be playing this\n";
-		abort();
+		exit(0);
 	}
 	
 	delete name;
@@ -370,6 +418,7 @@ int main(int argc, char** argv)
 		
 		//Create the new game window
 		myGameWindow = new GameWindow(me,c);
+		myGameWindow->game_over = 0;
 		
 		//send new player info to the server
 		std::stringstream ss;

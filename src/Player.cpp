@@ -13,6 +13,8 @@ Player::Player(std::string Name, int Age) : name{Name}, age{Age}
 	minBetNeeded = 0;
 	turn = 0;
 	round = 0;
+	spec = 0;
+	all_in = 0;
 }
 
 Player::~Player()
@@ -48,6 +50,8 @@ void Player::setHand(char new_hand[HAND_SIZE])
 	{
 		hand[i] = new_hand[i];
 	}
+	
+	sortHand();
 }
 
 void Player::replaceCard(int index, char new_card)

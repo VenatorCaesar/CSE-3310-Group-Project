@@ -31,31 +31,10 @@ InfoWindow::InfoWindow(std::string* name, int* age)
 	ageField->set_placeholder_text("Enter Age");
 	fieldsVBox->add(*ageField);
 
-	
-
-
-	//professor's code
-	/*
-	Gtk::Image* cardImage = new Gtk::Image("JPEG/card.jpeg");
-	card->set_image(*cardImage);
-	playerCardsHBox->add(*card);
-	*/
-
-
-
-	//original code
-	/*
-    Gtk::Image *MyImage = Gtk::manage(new Gtk::Image{"JPEG/card.jpeg"});
-    fieldsVBox->add(*MyImage);
-	*/
-
-
-	Gtk::Image* logoImage = new Gtk::Image("JPEG/card.jpeg");
+	// Adds an image for the logo
+	logoImage = new Gtk::Image("JPEG/card.jpeg");
 	fieldsVBox -> add(*logoImage);
 	
-
-
-
     //Adds the exit button
     exitButton = Gtk::manage(new Gtk::Button("Exit"));
     fieldsVBox->add(*exitButton);
@@ -74,6 +53,7 @@ InfoWindow::InfoWindow(std::string* name, int* age)
 
 InfoWindow::~InfoWindow()
 {
+	delete logoImage;
 	delete MainHBox;
 }
 
@@ -83,7 +63,16 @@ void InfoWindow::on_button_join_in_clicked()
 	//grab text from entry fields
 	std::string enteredName = nameField->get_text();
 	std::string entered = ageField->get_text();
-	int enteredAge = std::stoi(entered);
+	int enteredAge;
+	try
+	{
+		enteredAge = std::stoi(entered);
+	}
+	catch(const std::invalid_argument& ia)
+	{
+		std::cerr << "Enter an integer value please" << std::endl;
+		return;
+	}
 	
 	*Name = enteredName;
 	*Age = enteredAge;
@@ -94,5 +83,5 @@ void InfoWindow::on_button_join_in_clicked()
 void InfoWindow::on_button_exit_clicked()
 {
 	hide();
-	abort();
+	exit(0);
 }
